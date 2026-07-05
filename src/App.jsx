@@ -91,17 +91,55 @@ function PantallaPase({ paciente, rol, turnoId, onFinalizar, onCancelar }) {
 
   const iniciarGrabacion = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mr = new MediaRecorder(stream, { mimeType: 'audio/webm' })
+      console.log('Solicitando permiso de micrófono...')
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          sampleRate: 16000
+        }
+      })
+      console.log('Permiso concedido, iniciando grabación...')
+
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : MediaRecorder.isTypeSupported('audio/mp4')
+            ? 'audio/mp4'
+            : ''
+
+      console.log('MimeType seleccionado:', mimeType)
+
+      const options = mimeType ? { mimeType } : {}
+      const mr = new MediaRecorder(stream, options)
       chunksRef.current = []
-      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+
+      mr.ondataavailable = e => {
+        console.log('Chunk recibido:', e.data.size, 'bytes')
+        if (e.data.size > 0) chunksRef.current.push(e.data)
+      }
+
+      mr.onerror = e => {
+        console.error('Error en MediaRecorder:', e)
+        setError('Error en la grabación: ' + e.message)
+      }
+
       mr.start(1000)
+      console.log('MediaRecorder iniciado')
       mediaRef.current = mr
       setGrabando(true)
       setError(null)
       timerRef.current = setInterval(() => setSegundos(s => s + 1), 1000)
     } catch (e) {
-      setError('No se pudo acceder al micrófono. Verificá los permisos.')
+      console.error('Error al iniciar grabación:', e.name, e.message)
+      if (e.name === 'NotAllowedError') {
+        setError('Permiso de micrófono denegado. Andá a configuración del navegador y permitilo.')
+      } else if (e.name === 'NotFoundError') {
+        setError('No se encontró micrófono en este dispositivo.')
+      } else {
+        setError('Error al iniciar grabación: ' + e.message)
+      }
     }
   }, [])
 
