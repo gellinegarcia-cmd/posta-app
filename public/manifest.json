@@ -1,0 +1,21 @@
+{
+  "name": "POSTA",
+  "short_name": "POSTA",
+  "description": "La verdad de cada guardia",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0D1F16",
+  "theme_color": "#1B4332",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

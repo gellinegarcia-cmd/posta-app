@@ -1,5 +1,21 @@
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import './App.css'
+
+const API = 'https://kiosco-ai.onrender.com'
+
+const S = {
+  verde: '#52B788',
+  verdeOsc: '#1B4332',
+  verdeCard: '#152A1E',
+  bg: '#0D1F16',
+  muted: '#74A98A',
+  border: 'rgba(82,183,136,0.15)',
+  amber: '#EF9F27',
+  amberBg: 'rgba(186,117,23,0.06)',
+  amberBorder: 'rgba(186,117,23,0.3)',
+  text: '#E8F5EE',
+  rojo: '#EF4444',
+}
 
 const ROLES = [
   { id: 'medico', label: 'Médico', sub: 'Evoluciones y pase de sala' },
@@ -7,42 +23,463 @@ const ROLES = [
   { id: 'kinesiologia', label: 'Kinesiología', sub: 'Evolución funcional' },
 ]
 
-export default function App() {
-  const [rol, setRol] = useState(null)
+function generarTurnoId() {
+  return 'T' + Date.now().toString(36).toUpperCase()
+}
 
-  if (!rol) return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, background: '#0D1F16' }}>
-      <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#52B788', marginBottom: 16 }} />
-      <div style={{ fontSize: 32, fontWeight: 700, color: '#52B788', letterSpacing: '0.1em', marginBottom: 6 }}>POSTA</div>
-      <div style={{ fontSize: 12, color: '#74A98A', marginBottom: 56, letterSpacing: '0.06em' }}>La verdad de cada guardia</div>
+function PantallaRol({ onSelect }) {
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, background: S.bg }}>
+      <div style={{ width: 10, height: 10, borderRadius: '50%', background: S.verde, marginBottom: 16 }} />
+      <div style={{ fontSize: 32, fontWeight: 700, color: S.verde, letterSpacing: '0.1em', marginBottom: 6 }}>POSTA</div>
+      <div style={{ fontSize: 12, color: S.muted, marginBottom: 56, letterSpacing: '0.06em' }}>La verdad de cada guardia</div>
       <div style={{ width: '100%', maxWidth: 320, display: 'flex', flexDirection: 'column', gap: 10 }}>
         {ROLES.map(r => (
-          <button
-            key={r.id}
-            onClick={() => setRol(r.id)}
-            style={{
-              background: '#152A1E',
-              border: '0.5px solid rgba(82,183,136,0.2)',
-              borderRadius: 12,
-              padding: '16px 20px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'flex-start',
-              cursor: 'pointer',
-              textAlign: 'left',
-            }}
-          >
-            <span style={{ fontSize: 15, fontWeight: 500, color: '#E8F5EE', marginBottom: 3 }}>{r.label}</span>
-            <span style={{ fontSize: 12, color: '#74A98A' }}>{r.sub}</span>
+          <button key={r.id} onClick={() => onSelect(r.id)} style={{ background: S.verdeCard, border: `0.5px solid ${S.border}`, borderRadius: 12, padding: '16px 20px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', cursor: 'pointer', textAlign: 'left' }}>
+            <span style={{ fontSize: 15, fontWeight: 500, color: S.text, marginBottom: 3 }}>{r.label}</span>
+            <span style={{ fontSize: 12, color: S.muted }}>{r.sub}</span>
           </button>
         ))}
       </div>
     </div>
   )
+}
+
+function ModalPaciente({ onGuardar, onCerrar }) {
+  const [form, setForm] = useState({ cama: '', nombre: '', dni: '', edad: '', dx: '' })
+  const upd = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const campos = [
+    ['cama', 'Cama', 'Ej: 8'],
+    ['nombre', 'Nombre completo', 'Apellido, Nombre'],
+    ['dni', 'DNI', '12.345.678'],
+    ['edad', 'Edad', '58'],
+    ['dx', 'Diagnóstico principal', 'Ej: Neumonía grave · ARM día 7'],
+  ]
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 50 }} onClick={e => e.target === e.currentTarget && onCerrar()}>
+      <div style={{ background: S.verdeCard, borderRadius: '16px 16px 0 0', padding: '20px 16px', width: '100%', border: `0.5px solid rgba(82,183,136,0.2)`, maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ fontSize: 14, fontWeight: 500, color: S.text, marginBottom: 4 }}>Nuevo paciente</div>
+        <div style={{ fontSize: 11, color: S.muted, marginBottom: 16 }}>Completá antes de entrar a la habitación</div>
+        {campos.map(([k, l, p]) => (
+          <div key={k} style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 11, color: S.muted, display: 'block', marginBottom: 5 }}>{l}</label>
+            <input value={form[k]} onChange={e => upd(k, e.target.value)} placeholder={p}
+              style={{ width: '100%', background: S.bg, border: `0.5px solid rgba(82,183,136,0.2)`, borderRadius: 8, padding: '10px 12px', fontSize: 14, color: S.text, outline: 'none' }} />
+          </div>
+        ))}
+        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          <button onClick={onCerrar} style={{ flex: 1, background: 'transparent', color: S.muted, border: `0.5px solid ${S.border}`, borderRadius: 8, padding: 11, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+          <button onClick={() => form.cama && form.nombre && onGuardar(form)}
+            style={{ flex: 2, background: S.verdeOsc, color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 8, padding: 11, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+            Entrar a la habitación →
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PantallaPase({ paciente, rol, turnoId, onFinalizar, onCancelar }) {
+  const [grabando, setGrabando] = useState(false)
+  const [pausado, setPausado] = useState(false)
+  const [segundos, setSegundos] = useState(0)
+  const [procesando, setProcesando] = useState(false)
+  const [error, setError] = useState(null)
+  const mediaRef = useRef(null)
+  const chunksRef = useRef([])
+  const timerRef = useRef(null)
+
+  const iniciarGrabacion = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mr = new MediaRecorder(stream, { mimeType: 'audio/webm' })
+      chunksRef.current = []
+      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+      mr.start(1000)
+      mediaRef.current = mr
+      setGrabando(true)
+      setError(null)
+      timerRef.current = setInterval(() => setSegundos(s => s + 1), 1000)
+    } catch (e) {
+      setError('No se pudo acceder al micrófono. Verificá los permisos.')
+    }
+  }, [])
+
+  const pausarReanudar = useCallback(() => {
+    if (!mediaRef.current) return
+    if (pausado) {
+      mediaRef.current.resume()
+      timerRef.current = setInterval(() => setSegundos(s => s + 1), 1000)
+    } else {
+      mediaRef.current.pause()
+      clearInterval(timerRef.current)
+    }
+    setPausado(p => !p)
+  }, [pausado])
+
+  const finalizarYAnalizar = useCallback(async () => {
+    if (!mediaRef.current) return
+    clearInterval(timerRef.current)
+    setProcesando(true)
+    mediaRef.current.stop()
+    mediaRef.current.stream.getTracks().forEach(t => t.stop())
+    await new Promise(r => setTimeout(r, 500))
+    const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+    const formData = new FormData()
+    formData.append('audio', blob, 'pase.webm')
+    formData.append('turno_id', turnoId)
+    formData.append('cama', paciente.cama)
+    formData.append('nombre', paciente.nombre)
+    formData.append('dni', paciente.dni || '')
+    formData.append('edad', paciente.edad || '')
+    formData.append('dx', paciente.dx || '')
+    formData.append('rol', rol)
+    try {
+      const resAudio = await fetch(`${API}/posta/audio`, { method: 'POST', body: formData })
+      if (!resAudio.ok) throw new Error('Error al subir audio')
+      const resAnalisis = await fetch(`${API}/posta/analizar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ turno_id: turnoId, cama: paciente.cama, nombre: paciente.nombre, edad: paciente.edad, dx: paciente.dx, rol })
+      })
+      if (!resAnalisis.ok) throw new Error('Error al analizar')
+      const data = await resAnalisis.json()
+      onFinalizar({ ...paciente, evolucion: data.evolucion, estado: 'pasado' })
+    } catch (e) {
+      setError('Error al procesar. Intentá de nuevo.')
+      setProcesando(false)
+    }
+  }, [paciente, rol, turnoId, onFinalizar])
+
+  const min = Math.floor(segundos / 60).toString().padStart(2, '0')
+  const seg = (segundos % 60).toString().padStart(2, '0')
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0D1F16', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ color: '#74A98A', fontSize: 14 }}>Módulo {rol} — próximamente</div>
+    <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ background: S.verdeCard, padding: '14px 16px', borderBottom: `0.5px solid ${S.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: S.verde, letterSpacing: '0.08em' }}>POSTA</div>
+          <div style={{ fontSize: 10, color: S.muted }}>Cama {paciente.cama} · {paciente.nombre}</div>
+        </div>
+        <button onClick={onCancelar} style={{ background: 'none', border: 'none', color: S.muted, fontSize: 12, cursor: 'pointer' }}>Cancelar</button>
+      </div>
+
+      {grabando && (
+        <div style={{ background: S.verdeOsc, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: pausado ? S.muted : S.rojo }} />
+            <div>
+              <div style={{ fontSize: 20, fontWeight: 500, color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{min}:{seg}</div>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>{pausado ? 'Pausado' : 'Grabando pase'}</div>
+            </div>
+          </div>
+          <button onClick={pausarReanudar} style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', background: 'rgba(255,255,255,0.1)', border: '0.5px solid rgba(255,255,255,0.2)', padding: '6px 14px', borderRadius: 6, cursor: 'pointer' }}>
+            {pausado ? 'Reanudar' : 'Pausar'}
+          </button>
+        </div>
+      )}
+
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, gap: 20 }}>
+        <div style={{ background: S.verdeCard, border: `0.5px solid ${S.border}`, borderRadius: 12, padding: '14px 18px', width: '100%', maxWidth: 320 }}>
+          <div style={{ fontSize: 11, color: S.muted, marginBottom: 3 }}>Cama {paciente.cama} · {paciente.edad} años</div>
+          <div style={{ fontSize: 16, fontWeight: 500, color: S.text, marginBottom: 3 }}>{paciente.nombre}</div>
+          <div style={{ fontSize: 12, color: S.verde }}>{paciente.dx}</div>
+        </div>
+
+        {error && <div style={{ fontSize: 12, color: S.rojo, textAlign: 'center', padding: '8px 16px', background: 'rgba(239,68,68,0.1)', borderRadius: 8 }}>{error}</div>}
+
+        {procesando ? (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>⚕</div>
+            <div style={{ fontSize: 14, color: S.muted }}>Analizando el pase...</div>
+            <div style={{ fontSize: 12, color: '#4a7c5f', marginTop: 6 }}>POSTA está organizando la evolución</div>
+          </div>
+        ) : !grabando ? (
+          <button onClick={iniciarGrabacion} style={{ width: 80, height: 80, borderRadius: '50%', background: S.verdeOsc, border: `2px solid rgba(82,183,136,0.4)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, cursor: 'pointer' }}>
+            🎙
+          </button>
+        ) : (
+          <div style={{ width: 80, height: 80, borderRadius: '50%', background: S.verdeOsc, border: `2px solid rgba(82,183,136,0.3)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>
+            🎙
+          </div>
+        )}
+
+        {!grabando && !procesando && (
+          <div style={{ fontSize: 13, color: S.muted, textAlign: 'center' }}>Tocá el micrófono para empezar a grabar</div>
+        )}
+      </div>
+
+      {grabando && !procesando && (
+        <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}` }}>
+          <button onClick={finalizarYAnalizar} style={{ width: '100%', background: S.verdeOsc, color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 14, fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
+            Finalizar paciente →
+          </button>
+        </div>
+      )}
     </div>
+  )
+}
+
+function PantallaEvolucion({ paciente, rol, turnoId, onSiguiente, onVerChat }) {
+  const [copiado, setCopiado] = useState(false)
+  const evolucion = paciente.evolucion || ''
+  const partes = evolucion.split('---EVOLUCIÓN PARA HISTORIA CLÍNICA---')
+  const seccionesCli = partes[0] || ''
+  const textoHC = partes[1]?.trim() || ''
+
+  function copiar() {
+    navigator.clipboard.writeText(textoHC || evolucion)
+    setCopiado(true)
+    setTimeout(() => setCopiado(false), 2000)
+  }
+
+  const secciones = seccionesCli.split('###').filter(s => s.trim()).map(s => {
+    const lineas = s.trim().split('\n')
+    return { titulo: lineas[0].trim(), contenido: lineas.slice(1).join('\n').trim() }
+  })
+
+  const colores = {
+    'Situación actual': S.verde,
+    'Evolución del día': '#60A5FA',
+    'Conducta / Plan': '#A78BFA',
+    'Estudios pendientes': S.amber,
+    'Medicación': '#74A98A',
+    'Urgente hoy': S.rojo,
+    'Pendiente próximos días': '#F97316',
+    'Alerta POSTA': S.amber,
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ background: S.verdeCard, padding: '14px 16px', borderBottom: `0.5px solid ${S.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: S.verde, letterSpacing: '0.08em' }}>POSTA</div>
+          <div style={{ fontSize: 10, color: S.muted }}>Cama {paciente.cama} · {paciente.nombre}</div>
+        </div>
+        <div style={{ fontSize: 11, color: S.verde, background: 'rgba(82,183,136,0.12)', padding: '3px 10px', borderRadius: 99 }}>Evolución lista</div>
+      </div>
+
+      <div style={{ flex: 1, padding: '14px 16px', overflowY: 'auto' }}>
+        <div style={{ background: S.verdeCard, border: `0.5px solid ${S.border}`, borderRadius: 10, padding: '10px 13px', marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: S.muted, marginBottom: 2 }}>Cama {paciente.cama} · {paciente.edad} años · DNI {paciente.dni}</div>
+          <div style={{ fontSize: 14, fontWeight: 500, color: S.text, marginBottom: 2 }}>{paciente.nombre}</div>
+          <div style={{ fontSize: 12, color: S.verde }}>{paciente.dx}</div>
+        </div>
+
+        {secciones.map((sec, i) => (
+          <div key={i} style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 10, fontWeight: 500, color: colores[sec.titulo] || S.verde, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6, paddingLeft: 8, borderLeft: `2px solid ${colores[sec.titulo] || S.verde}` }}>
+              {sec.titulo}
+            </div>
+            <div style={{ fontSize: 13, color: S.text, lineHeight: 1.6 }}>
+              {sec.contenido.split('\n').filter(l => l.trim()).map((l, j) => (
+                <div key={j} style={{ display: 'flex', gap: 6, marginBottom: 3 }}>
+                  <span style={{ color: S.muted, flexShrink: 0 }}>·</span>
+                  <span>{l.replace(/^[-•]\s*/, '')}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {textoHC && (
+          <div style={{ background: 'rgba(82,183,136,0.04)', border: `0.5px solid rgba(82,183,136,0.2)`, borderRadius: 10, padding: '12px 14px', marginTop: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ fontSize: 10, color: S.muted, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Para historia clínica</div>
+              <button onClick={copiar} style={{ fontSize: 11, color: copiado ? S.verde : S.muted, background: 'none', border: 'none', cursor: 'pointer' }}>
+                {copiado ? '✓ Copiado' : 'Copiar'}
+              </button>
+            </div>
+            <div style={{ fontSize: 12, color: '#9CA3AF', lineHeight: 1.7 }}>{textoHC}</div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <button onClick={onVerChat} style={{ width: '100%', background: 'transparent', color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer' }}>
+          Consultar a POSTA sobre este paciente
+        </button>
+        <button onClick={onSiguiente} style={{ width: '100%', background: S.verdeOsc, color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 13, fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
+          + Siguiente paciente
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function PantallaChat({ paciente, turnoId, onVolver }) {
+  const [mensajes, setMensajes] = useState([{ role: 'assistant', content: `Evolución de ${paciente.nombre} lista. ¿Querés consultar algo sobre este paciente?` }])
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function enviar() {
+    const texto = input.trim()
+    if (!texto || loading) return
+    setInput('')
+    const nuevos = [...mensajes, { role: 'user', content: texto }]
+    setMensajes(nuevos)
+    setLoading(true)
+    try {
+      const res = await fetch(`${API}/posta/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pregunta: texto,
+          contexto_paciente: `Paciente: ${paciente.nombre}, ${paciente.edad} años. Diagnóstico: ${paciente.dx}. Evolución: ${paciente.evolucion || ''}`,
+          historial: nuevos.slice(-6),
+        })
+      })
+      const data = await res.json()
+      setMensajes([...nuevos, { role: 'assistant', content: data.respuesta || 'Error al procesar.' }])
+    } catch {
+      setMensajes([...nuevos, { role: 'assistant', content: 'No pude conectarme. Intentá de nuevo.' }])
+    }
+    setLoading(false)
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ background: S.verdeCard, padding: '14px 16px', borderBottom: `0.5px solid ${S.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: S.verde, letterSpacing: '0.08em' }}>POSTA</div>
+          <div style={{ fontSize: 10, color: S.muted }}>Cama {paciente.cama} · {paciente.nombre}</div>
+        </div>
+        <button onClick={onVolver} style={{ background: 'none', border: 'none', color: S.muted, fontSize: 12, cursor: 'pointer' }}>← Volver</button>
+      </div>
+      <div style={{ flex: 1, padding: '14px 16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {mensajes.map((m, i) => (
+          <div key={i} style={{ maxWidth: '85%', alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', background: m.role === 'user' ? S.verdeOsc : S.verdeCard, border: `0.5px solid ${m.role === 'user' ? 'rgba(82,183,136,0.3)' : S.border}`, padding: '10px 14px', borderRadius: 12, fontSize: 13, lineHeight: 1.6, color: S.text }}>
+            {m.role === 'assistant' && <div style={{ fontSize: 9, color: S.verde, marginBottom: 4, letterSpacing: '0.06em', fontWeight: 500 }}>POSTA</div>}
+            {m.content}
+          </div>
+        ))}
+        {loading && <div style={{ alignSelf: 'flex-start', background: S.verdeCard, border: `0.5px solid ${S.border}`, padding: '10px 14px', borderRadius: 12, fontSize: 13, color: S.muted, fontStyle: 'italic' }}>Analizando...</div>}
+      </div>
+      <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}`, display: 'flex', gap: 8 }}>
+        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && enviar()} placeholder="Preguntá sobre el paciente..." style={{ flex: 1, background: S.verdeCard, border: `0.5px solid ${S.border}`, borderRadius: 8, padding: '9px 12px', fontSize: 13, color: S.text, outline: 'none' }} />
+        <button onClick={enviar} disabled={loading || !input.trim()} style={{ width: 36, height: 36, borderRadius: '50%', background: S.verdeOsc, border: 'none', color: S.verde, cursor: 'pointer', fontSize: 16 }}>↑</button>
+      </div>
+    </div>
+  )
+}
+
+function PanelCamas({ rol, onNuevoPaciente, pacientes, onPaciente, onPDF }) {
+  const pasados = pacientes.filter(p => p.estado === 'pasado').length
+  const pendientes = pacientes.filter(p => p.estado !== 'pasado').length
+  const alertas = pacientes.filter(p => p.alerta).length
+  const ordenados = [...pacientes.filter(p => p.alerta), ...pacientes.filter(p => !p.alerta && p.estado !== 'pasado'), ...pacientes.filter(p => p.estado === 'pasado')]
+
+  return (
+    <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ background: S.verdeCard, padding: '14px 16px', borderBottom: `0.5px solid ${S.border}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: S.verde, letterSpacing: '0.08em' }}>POSTA</div>
+          <div style={{ fontSize: 11, color: S.verde, background: 'rgba(82,183,136,0.12)', padding: '3px 10px', borderRadius: 99, border: `0.5px solid rgba(82,183,136,0.2)`, textTransform: 'capitalize' }}>{rol}</div>
+        </div>
+        <div style={{ display: 'flex', gap: 16 }}>
+          <span style={{ fontSize: 11, color: S.muted }}>Total <strong style={{ color: S.verde }}>{pacientes.length}</strong></span>
+          <span style={{ fontSize: 11, color: S.muted }}>Pasados <strong style={{ color: S.verde }}>{pasados}</strong></span>
+          <span style={{ fontSize: 11, color: S.muted }}>Pendientes <strong style={{ color: S.verde }}>{pendientes}</strong></span>
+          {alertas > 0 && <span style={{ fontSize: 11, color: S.muted }}>Alertas <strong style={{ color: S.amber }}>{alertas}</strong></span>}
+        </div>
+      </div>
+
+      <div style={{ flex: 1, padding: '14px 16px', overflowY: 'auto' }}>
+        <div style={{ fontSize: 10, fontWeight: 500, color: S.muted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>Mis pacientes</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+          {ordenados.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '40px 0', color: S.muted, fontSize: 13 }}>
+              No hay pacientes todavía.<br />Tocá + para agregar el primero.
+            </div>
+          )}
+          {ordenados.map(p => (
+            <button key={p.id} onClick={() => p.estado !== 'pasado' && onPaciente(p)}
+              style={{ background: p.alerta ? S.amberBg : S.verdeCard, border: `0.5px solid ${p.alerta ? S.amberBorder : p.estado === 'pasado' ? 'rgba(82,183,136,0.2)' : S.border}`, borderRadius: 10, padding: '11px 13px', display: 'flex', alignItems: 'center', gap: 12, cursor: p.estado === 'pasado' ? 'default' : 'pointer', opacity: p.estado === 'pasado' ? 0.6 : 1, textAlign: 'left', width: '100%' }}>
+              <div style={{ width: 36, height: 36, borderRadius: 8, background: p.alerta ? 'rgba(186,117,23,0.15)' : p.estado === 'pasado' ? 'rgba(82,183,136,0.06)' : 'rgba(82,183,136,0.12)', color: p.alerta ? S.amber : S.verde, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, flexShrink: 0 }}>
+                {p.cama}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: S.text, marginBottom: 2 }}>{p.nombre}</div>
+                <div style={{ fontSize: 11, color: S.muted }}>{p.dx}</div>
+              </div>
+              <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 99, background: p.alerta ? 'rgba(186,117,23,0.1)' : p.estado === 'pasado' ? 'rgba(82,183,136,0.1)' : 'rgba(82,183,136,0.06)', color: p.alerta ? S.amber : p.estado === 'pasado' ? '#40916C' : S.muted, flexShrink: 0 }}>
+                {p.alerta ? '⚠ Alerta' : p.estado === 'pasado' ? 'Pasado' : 'Pendiente'}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div style={{ height: '0.5px', background: 'rgba(82,183,136,0.1)', margin: '12px 0' }} />
+
+        <button onClick={onNuevoPaciente} style={{ width: '100%', background: 'rgba(82,183,136,0.04)', border: '0.5px dashed rgba(82,183,136,0.15)', borderRadius: 10, padding: '10px 13px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+          <div style={{ width: 28, height: 28, borderRadius: 6, background: 'rgba(82,183,136,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: S.verde, fontSize: 18 }}>+</div>
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ fontSize: 12, color: S.verde }}>Agregar paciente</div>
+            <div style={{ fontSize: 11, color: '#4a7c5f' }}>Nuevo ingreso o transferencia</div>
+          </div>
+        </button>
+      </div>
+
+      <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {pasados > 0 && (
+          <button onClick={onPDF} style={{ width: '100%', background: S.verdeOsc, color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 13, fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
+            Generar PDF del turno ({pasados} pacientes)
+          </button>
+        )}
+        <button style={{ width: '100%', background: 'transparent', color: S.muted, border: `0.5px solid ${S.border}`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer' }}>
+          Finalizar turno
+        </button>
+      </div>
+    </div>
+  )
+}
+
+export default function App() {
+  const [rol, setRol] = useState(null)
+  const [pantalla, setPantalla] = useState('panel')
+  const [pacientes, setPacientes] = useState([])
+  const [pacienteActual, setPacienteActual] = useState(null)
+  const [showModal, setShowModal] = useState(false)
+  const [turnoId] = useState(generarTurnoId)
+
+  if (!rol) return <PantallaRol onSelect={setRol} />
+
+  function agregarPaciente(form) {
+    const nuevo = { id: Date.now(), ...form, estado: 'pendiente', alerta: false, evolucion: null }
+    setPacientes(p => [...p, nuevo])
+    setShowModal(false)
+    setPacienteActual(nuevo)
+    setPantalla('pase')
+  }
+
+  function finalizarPase(pacienteConEvolucion) {
+    setPacientes(prev => prev.map(p => p.id === pacienteConEvolucion.id ? pacienteConEvolucion : p))
+    setPacienteActual(pacienteConEvolucion)
+    setPantalla('evolucion')
+  }
+
+  if (pantalla === 'pase' && pacienteActual) {
+    return <PantallaPase paciente={pacienteActual} rol={rol} turnoId={turnoId} onFinalizar={finalizarPase} onCancelar={() => setPantalla('panel')} />
+  }
+
+  if (pantalla === 'evolucion' && pacienteActual) {
+    return <PantallaEvolucion paciente={pacienteActual} rol={rol} turnoId={turnoId}
+      onSiguiente={() => { setPacienteActual(null); setShowModal(true); setPantalla('panel') }}
+      onVerChat={() => setPantalla('chat')} />
+  }
+
+  if (pantalla === 'chat' && pacienteActual) {
+    return <PantallaChat paciente={pacienteActual} turnoId={turnoId} onVolver={() => setPantalla('evolucion')} />
+  }
+
+  return (
+    <>
+      <PanelCamas rol={rol} pacientes={pacientes}
+        onNuevoPaciente={() => setShowModal(true)}
+        onPaciente={p => { setPacienteActual(p); setPantalla('pase') }}
+        onPDF={() => alert('Generando PDF del turno...')}
+      />
+      {showModal && <ModalPaciente onGuardar={agregarPaciente} onCerrar={() => setShowModal(false)} />}
+    </>
   )
 }
