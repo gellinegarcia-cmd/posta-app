@@ -82,6 +82,7 @@ function ModalPaciente({ onGuardar, onCerrar }) {
 function PantallaPase({ paciente, rol, turnoId, onFinalizar, onCancelar }) {
   const [grabando, setGrabando] = useState(false)
   const [pausado, setPausado] = useState(false)
+  const [startTime, setStartTime] = useState(null)
   const [segundos, setSegundos] = useState(0)
   const [procesando, setProcesando] = useState(false)
   const [error, setError] = useState(null)
@@ -111,11 +112,11 @@ function PantallaPase({ paciente, rol, turnoId, onFinalizar, onCancelar }) {
       mr.onstart = () => {
         setGrabando(true)
         setError(null)
-        let count = 0
+        const inicio = Date.now()
+        setStartTime(inicio)
         timerRef.current = setInterval(() => {
-          count++
-          setSegundos(count)
-        }, 1000)
+          setSegundos(Math.floor((Date.now() - inicio) / 1000))
+        }, 500)
       }
 
       mr.onerror = e => {
@@ -595,8 +596,8 @@ function PanelCamas({ rol, onNuevoPaciente, pacientes, onPaciente, onPDF }) {
             </div>
           )}
           {ordenados.map(p => (
-            <button key={p.id} onClick={() => p.estado !== 'pasado' && onPaciente(p)}
-              style={{ background: p.alerta ? S.amberBg : S.verdeCard, border: `0.5px solid ${p.alerta ? S.amberBorder : p.estado === 'pasado' ? 'rgba(82,183,136,0.2)' : S.border}`, borderRadius: 10, padding: '11px 13px', display: 'flex', alignItems: 'center', gap: 12, cursor: p.estado === 'pasado' ? 'default' : 'pointer', opacity: p.estado === 'pasado' ? 0.6 : 1, textAlign: 'left', width: '100%' }}>
+            <button key={p.id} onClick={() => onPaciente(p)}
+              style={{ background: p.alerta ? S.amberBg : S.verdeCard, border: `0.5px solid ${p.alerta ? S.amberBorder : p.estado === 'pasado' ? 'rgba(82,183,136,0.2)' : S.border}`, borderRadius: 10, padding: '11px 13px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', opacity: p.estado === 'pasado' ? 0.6 : 1, textAlign: 'left', width: '100%' }}>
               <div style={{ width: 36, height: 36, borderRadius: 8, background: p.alerta ? 'rgba(186,117,23,0.15)' : p.estado === 'pasado' ? 'rgba(82,183,136,0.06)' : 'rgba(82,183,136,0.12)', color: p.alerta ? S.amber : S.verde, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, flexShrink: 0 }}>
                 {p.cama}
               </div>
@@ -638,7 +639,7 @@ function PanelCamas({ rol, onNuevoPaciente, pacientes, onPaciente, onPDF }) {
 
 export default function App() {
   const [rol, setRol] = useState('medico')
-  const [pantalla, setPantalla] = useState('pase')
+  const [pantalla, setPantalla] = useState('panel')
   const [pacientes, setPacientes] = useState([
     { id: 1, cama: '8', nombre: 'Pérez, Juan Carlos', dni: '18432901', edad: '58', dx: 'Neumonía grave · ARM día 7', estado: 'pendiente', alerta: false, evolucion: null }
   ])
@@ -703,7 +704,7 @@ export default function App() {
     <>
       <PanelCamas rol={rol} pacientes={pacientes}
         onNuevoPaciente={() => setShowModal(true)}
-        onPaciente={p => { setPacienteActual(p); setPantalla('pase') }}
+        onPaciente={p => { setPacienteActual(p); setPantalla('evolucion') }}
         onPDF={() => alert('Generando PDF del turno...')}
       />
       {showModal && <ModalPaciente onGuardar={agregarPaciente} onCerrar={() => setShowModal(false)} />}
