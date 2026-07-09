@@ -156,15 +156,29 @@ function PantallaPase({ paciente, rol, turnoId, onFinalizar, onCancelar }) {
   }, [pausado])
 
   const finalizarYAnalizar = useCallback(async () => {
-    if (!mediaRef.current) return
+    if (!mediaRef.current) {
+      console.error('mediaRef.current es null')
+      setError('No hay grabación activa.')
+      return
+    }
     clearInterval(timerRef.current)
     setProcesando(true)
+    console.log('Deteniendo MediaRecorder, estado:', mediaRef.current.state)
     mediaRef.current.stop()
     mediaRef.current.stream.getTracks().forEach(t => t.stop())
-    await new Promise(r => setTimeout(r, 500))
-    const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+    await new Promise(r => setTimeout(r, 1000))
+    console.log('Chunks:', chunksRef.current.length, 'Total bytes:', chunksRef.current.reduce((a, c) => a + c.size, 0))
+    const mimeType = chunksRef.current[0]?.type || 'audio/webm'
+    const blob = new Blob(chunksRef.current, { type: mimeType })
+    console.log('Blob:', blob.size, 'bytes, tipo:', blob.type)
+    if (blob.size < 1000) {
+      setError('Audio muy corto. Grabá al menos 10 segundos.')
+      setProcesando(false)
+      return
+    }
+    const ext = mimeType.includes('mp4') ? 'pase.mp4' : 'pase.webm'
     const formData = new FormData()
-    formData.append('audio', blob, 'pase.webm')
+    formData.append('audio', blob, ext)
     formData.append('turno_id', turnoId)
     formData.append('cama', paciente.cama)
     formData.append('nombre', paciente.nombre)
@@ -173,18 +187,24 @@ function PantallaPase({ paciente, rol, turnoId, onFinalizar, onCancelar }) {
     formData.append('dx', paciente.dx || '')
     formData.append('rol', rol)
     try {
+      console.log('Enviando a /posta/audio...')
       const resAudio = await fetch(`${API}/posta/audio`, { method: 'POST', body: formData })
-      if (!resAudio.ok) throw new Error('Error al subir audio')
+      const audioData = await resAudio.json()
+      console.log('Audio response:', resAudio.status, audioData)
+      if (!resAudio.ok) throw new Error(audioData.error || 'Error al subir audio')
+      console.log('Enviando a /posta/analizar...')
       const resAnalisis = await fetch(`${API}/posta/analizar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ turno_id: turnoId, cama: paciente.cama, nombre: paciente.nombre, edad: paciente.edad, dx: paciente.dx, rol })
       })
-      if (!resAnalisis.ok) throw new Error('Error al analizar')
       const data = await resAnalisis.json()
+      console.log('Analisis response:', resAnalisis.status, data)
+      if (!resAnalisis.ok) throw new Error(data.error || 'Error al analizar')
       onFinalizar({ ...paciente, evolucion: data.evolucion, estado: 'pasado' })
     } catch (e) {
-      setError('Error al procesar. Intentá de nuevo.')
+      console.error('Error:', e.message)
+      setError('Error: ' + e.message)
       setProcesando(false)
     }
   }, [paciente, rol, turnoId, onFinalizar])
@@ -474,9 +494,11 @@ function PanelCamas({ rol, onNuevoPaciente, pacientes, onPaciente, onPDF }) {
 
 export default function App() {
   const [rol, setRol] = useState(null)
-  const [pantalla, setPantalla] = useState('panel')
-  const [pacientes, setPacientes] = useState([])
-  const [pacienteActual, setPacienteActual] = useState(null)
+  const [pantalla, setPantalla] = useState('pase')
+  const [pacientes, setPacientes] = useState([
+    { id: 1, cama: '8', nombre: 'Pérez, Juan Carlos', dni: '18432901', edad: '58', dx: 'Neumonía grave · ARM día 7', estado: 'pendiente', alerta: false, evolucion: null }
+  ])
+  const [pacienteActual, setPacienteActual] = useState({ id: 1, cama: '8', nombre: 'Pérez, Juan Carlos', dni: '18432901', edad: '58', dx: 'Neumonía grave · ARM día 7', estado: 'pendiente', alerta: false, evolucion: null })
   const [showModal, setShowModal] = useState(false)
   const [turnoId] = useState(generarTurnoId)
 
