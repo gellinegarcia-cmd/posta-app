@@ -493,7 +493,7 @@ function PanelCamas({ rol, onNuevoPaciente, pacientes, onPaciente, onPDF }) {
 }
 
 export default function App() {
-  const [rol, setRol] = useState(null)
+  const [rol, setRol] = useState('medico')
   const [pantalla, setPantalla] = useState('pase')
   const [pacientes, setPacientes] = useState([
     { id: 1, cama: '8', nombre: 'Pérez, Juan Carlos', dni: '18432901', edad: '58', dx: 'Neumonía grave · ARM día 7', estado: 'pendiente', alerta: false, evolucion: null }
