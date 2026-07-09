@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import './App.css'
 
 const API = 'https://kiosco-ai.onrender.com'
@@ -223,7 +223,7 @@ function PantallaPase({ paciente, rol, turnoId, onFinalizar, onCancelar }) {
           <div style={{ fontSize: 15, fontWeight: 700, color: S.verde, letterSpacing: '0.08em' }}>POSTA</div>
           <div style={{ fontSize: 10, color: S.muted }}>Cama {paciente.cama} · {paciente.nombre}</div>
         </div>
-        <button onClick={onCancelar} style={{ background: 'none', border: 'none', color: S.muted, fontSize: 12, cursor: 'pointer' }}>Cancelar</button>
+        <button onClick={onCancelar} style={{ background: 'none', border: 'none', color: '#74A98A', fontSize: 24, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>‹</button>
       </div>
 
       {grabando && (
@@ -282,8 +282,9 @@ function PantallaPase({ paciente, rol, turnoId, onFinalizar, onCancelar }) {
   )
 }
 
-function PantallaEvolucion({ paciente, rol, turnoId, onSiguiente, onVerChat }) {
+function PantallaEvolucion({ paciente, rol, turnoId, onSiguiente, onVerChat, onVolver }) {
   const [copiado, setCopiado] = useState(false)
+  const [tabActivo, setTabActivo] = useState('resumen')
   const evolucion = paciente.evolucion || ''
   const partes = evolucion.split('---EVOLUCIÓN PARA HISTORIA CLÍNICA---')
   const seccionesCli = partes[0] || ''
@@ -314,11 +315,22 @@ function PantallaEvolucion({ paciente, rol, turnoId, onSiguiente, onVerChat }) {
   return (
     <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column' }}>
       <div style={{ background: S.verdeCard, padding: '14px 16px', borderBottom: `0.5px solid ${S.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: S.verde, letterSpacing: '0.08em' }}>POSTA</div>
-          <div style={{ fontSize: 10, color: S.muted }}>Cama {paciente.cama} · {paciente.nombre}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <button onClick={() => onVolver()} style={{ background: 'none', border: 'none', color: '#74A98A', fontSize: 24, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>‹</button>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: S.verde, letterSpacing: '0.08em' }}>POSTA</div>
+            <div style={{ fontSize: 10, color: S.muted }}>Cama {paciente.cama} · {paciente.nombre}</div>
+          </div>
         </div>
         <div style={{ fontSize: 11, color: S.verde, background: 'rgba(82,183,136,0.12)', padding: '3px 10px', borderRadius: 99 }}>Evolución lista</div>
+      </div>
+
+      <div style={{ display: 'flex', borderBottom: '0.5px solid rgba(82,183,136,0.15)', padding: '0 16px' }}>
+        {['resumen', 'historia'].map(t => (
+          <button key={t} onClick={() => setTabActivo(t)} style={{ fontSize: 12, padding: '10px 14px', color: tabActivo === t ? '#52B788' : '#74A98A', background: 'none', border: 'none', cursor: 'pointer', borderBottom: `2px solid ${tabActivo === t ? '#52B788' : 'transparent'}`, marginBottom: -1 }}>
+            {t === 'resumen' ? 'Resumen' : 'Historia clínica'}
+          </button>
+        ))}
       </div>
 
       <div style={{ flex: 1, padding: '14px 16px', overflowY: 'auto' }}>
@@ -328,7 +340,7 @@ function PantallaEvolucion({ paciente, rol, turnoId, onSiguiente, onVerChat }) {
           <div style={{ fontSize: 12, color: S.verde }}>{paciente.dx}</div>
         </div>
 
-        {secciones.map((sec, i) => (
+        {tabActivo === 'resumen' && secciones.map((sec, i) => (
           <div key={i} style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 10, fontWeight: 500, color: colores[sec.titulo] || S.verde, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6, paddingLeft: 8, borderLeft: `2px solid ${colores[sec.titulo] || S.verde}` }}>
               {sec.titulo}
@@ -344,7 +356,7 @@ function PantallaEvolucion({ paciente, rol, turnoId, onSiguiente, onVerChat }) {
           </div>
         ))}
 
-        {textoHC && (
+        {tabActivo === 'historia' && textoHC && (
           <div style={{ background: 'rgba(82,183,136,0.04)', border: `0.5px solid rgba(82,183,136,0.2)`, borderRadius: 10, padding: '12px 14px', marginTop: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <div style={{ fontSize: 10, color: S.muted, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Para historia clínica</div>
@@ -506,6 +518,29 @@ export default function App() {
   const [showModal, setShowModal] = useState(false)
   const [turnoId] = useState(generarTurnoId)
 
+  useEffect(() => {
+    const handleBack = (e) => {
+      if (pantalla === 'chat') {
+        e.preventDefault()
+        setPantalla('evolucion')
+      } else if (pantalla === 'evolucion') {
+        e.preventDefault()
+        setPantalla('panel')
+      } else if (pantalla === 'pase') {
+        e.preventDefault()
+        setPantalla('panel')
+      }
+    }
+    window.addEventListener('popstate', handleBack)
+    return () => window.removeEventListener('popstate', handleBack)
+  }, [pantalla])
+
+  useEffect(() => {
+    if (pantalla !== 'panel') {
+      window.history.pushState({ pantalla }, '')
+    }
+  }, [pantalla])
+
   if (!rol) return <PantallaRol onSelect={setRol} />
 
   function agregarPaciente(form) {
@@ -529,7 +564,8 @@ export default function App() {
   if (pantalla === 'evolucion' && pacienteActual) {
     return <PantallaEvolucion paciente={pacienteActual} rol={rol} turnoId={turnoId}
       onSiguiente={() => { setPacienteActual(null); setShowModal(true); setPantalla('panel') }}
-      onVerChat={() => setPantalla('chat')} />
+      onVerChat={() => setPantalla('chat')}
+      onVolver={() => setPantalla('pase')} />
   }
 
   if (pantalla === 'chat' && pacienteActual) {
