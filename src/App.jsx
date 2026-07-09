@@ -125,12 +125,16 @@ function PantallaPase({ paciente, rol, turnoId, onFinalizar, onCancelar }) {
         setError('Error en la grabación: ' + e.message)
       }
 
-      mr.start(1000)
+      mr.start(500)
       console.log('MediaRecorder iniciado')
       mediaRef.current = mr
       setGrabando(true)
       setError(null)
-      timerRef.current = setInterval(() => setSegundos(s => s + 1), 1000)
+      timerRef.current = setInterval(() => {
+        if (mediaRef.current && mediaRef.current.state === 'recording') {
+          setSegundos(s => s + 1)
+        }
+      }, 1000)
     } catch (e) {
       console.error('Error al iniciar grabación:', e.name, e.message)
       if (e.name === 'NotAllowedError') {
