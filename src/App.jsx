@@ -282,19 +282,24 @@ function PantallaPase({ paciente, rol, turnoId, onFinalizar, onCancelar }) {
   )
 }
 
-function PantallaEvolucion({ paciente, rol, turnoId, onSiguiente, onVerChat, onVolver }) {
-  const [copiado, setCopiado] = useState(false)
-  const [tabActivo, setTabActivo] = useState('resumen')
+function PantallaFichaPaciente({ paciente, rol, turnoId, onSiguiente, onVolver }) {
+  const [tab, setTab] = useState('evolucion')
+  const [mensajes, setMensajes] = useState([{ role: 'assistant', content: `Estoy al tanto de la evolución de ${paciente.nombre}. ¿Qué necesitás consultar?` }])
+  const [inputChat, setInputChat] = useState('')
+  const [loadingChat, setLoadingChat] = useState(false)
+  const [grabandoConsulta, setGrabandoConsulta] = useState(false)
+  const [grabandoPase, setGrabandoPase] = useState(false)
+  const [contextoCompleto, setContextoCompleto] = useState(paciente.evolucion || '')
+  const mediaConsultaRef = useRef(null)
+  const chunksConsultaRef = useRef([])
+  const mediaPaseRef = useRef(null)
+  const chunksPaseRef = useRef([])
+
   const evolucion = paciente.evolucion || ''
   const partes = evolucion.split('---EVOLUCIÓN PARA HISTORIA CLÍNICA---')
   const seccionesCli = partes[0] || ''
   const textoHC = partes[1]?.trim() || ''
-
-  function copiar() {
-    navigator.clipboard.writeText(textoHC || evolucion)
-    setCopiado(true)
-    setTimeout(() => setCopiado(false), 2000)
-  }
+  const [copiado, setCopiado] = useState(false)
 
   const secciones = seccionesCli.split('###').filter(s => s.trim()).map(s => {
     const lineas = s.trim().split('\n')
@@ -302,137 +307,273 @@ function PantallaEvolucion({ paciente, rol, turnoId, onSiguiente, onVerChat, onV
   })
 
   const colores = {
-    'Situación actual': S.verde,
+    'Situación actual': '#52B788',
     'Evolución del día': '#60A5FA',
     'Conducta / Plan': '#A78BFA',
-    'Estudios pendientes': S.amber,
+    'Estudios pendientes': '#EF9F27',
     'Medicación': '#74A98A',
-    'Urgente hoy': S.rojo,
+    'Urgente hoy': '#EF4444',
     'Pendiente próximos días': '#F97316',
-    'Alerta POSTA': S.amber,
+    'Alerta POSTA': '#EF9F27',
   }
 
-  return (
-    <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ background: S.verdeCard, padding: '14px 16px', borderBottom: `0.5px solid ${S.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <button onClick={() => onVolver()} style={{ background: 'none', border: 'none', color: '#74A98A', fontSize: 24, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>‹</button>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: S.verde, letterSpacing: '0.08em' }}>POSTA</div>
-            <div style={{ fontSize: 10, color: S.muted }}>Cama {paciente.cama} · {paciente.nombre}</div>
-          </div>
-        </div>
-        <div style={{ fontSize: 11, color: S.verde, background: 'rgba(82,183,136,0.12)', padding: '3px 10px', borderRadius: 99 }}>Evolución lista</div>
-      </div>
+  function copiar() {
+    navigator.clipboard.writeText(textoHC || evolucion)
+    setCopiado(true)
+    setTimeout(() => setCopiado(false), 2000)
+  }
 
-      <div style={{ display: 'flex', borderBottom: '0.5px solid rgba(82,183,136,0.15)', padding: '0 16px' }}>
-        {['resumen', 'historia'].map(t => (
-          <button key={t} onClick={() => setTabActivo(t)} style={{ fontSize: 12, padding: '10px 14px', color: tabActivo === t ? '#52B788' : '#74A98A', background: 'none', border: 'none', cursor: 'pointer', borderBottom: `2px solid ${tabActivo === t ? '#52B788' : 'transparent'}`, marginBottom: -1 }}>
-            {t === 'resumen' ? 'Resumen' : 'Historia clínica'}
-          </button>
-        ))}
-      </div>
+  async function cargarContexto() {
+    try {
+      const res = await fetch(`${API}/posta/contexto/${turnoId}/${paciente.cama}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.contexto) setContextoCompleto(data.contexto + '\n\nEVOLUCIÓN GENERADA:\n' + (paciente.evolucion || ''))
+      }
+    } catch {}
+  }
 
-      <div style={{ flex: 1, padding: '14px 16px', overflowY: 'auto' }}>
-        <div style={{ background: S.verdeCard, border: `0.5px solid ${S.border}`, borderRadius: 10, padding: '10px 13px', marginBottom: 14 }}>
-          <div style={{ fontSize: 11, color: S.muted, marginBottom: 2 }}>Cama {paciente.cama} · {paciente.edad} años · DNI {paciente.dni}</div>
-          <div style={{ fontSize: 14, fontWeight: 500, color: S.text, marginBottom: 2 }}>{paciente.nombre}</div>
-          <div style={{ fontSize: 12, color: S.verde }}>{paciente.dx}</div>
-        </div>
+  useEffect(() => { cargarContexto() }, [])
 
-        {tabActivo === 'resumen' && secciones.map((sec, i) => (
-          <div key={i} style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 10, fontWeight: 500, color: colores[sec.titulo] || S.verde, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6, paddingLeft: 8, borderLeft: `2px solid ${colores[sec.titulo] || S.verde}` }}>
-              {sec.titulo}
-            </div>
-            <div style={{ fontSize: 13, color: S.text, lineHeight: 1.6 }}>
-              {sec.contenido.split('\n').filter(l => l.trim()).map((l, j) => (
-                <div key={j} style={{ display: 'flex', gap: 6, marginBottom: 3 }}>
-                  <span style={{ color: S.muted, flexShrink: 0 }}>·</span>
-                  <span>{l.replace(/^[-•]\s*/, '')}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-
-        {tabActivo === 'historia' && textoHC && (
-          <div style={{ background: 'rgba(82,183,136,0.04)', border: `0.5px solid rgba(82,183,136,0.2)`, borderRadius: 10, padding: '12px 14px', marginTop: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <div style={{ fontSize: 10, color: S.muted, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Para historia clínica</div>
-              <button onClick={copiar} style={{ fontSize: 11, color: copiado ? S.verde : S.muted, background: 'none', border: 'none', cursor: 'pointer' }}>
-                {copiado ? '✓ Copiado' : 'Copiar'}
-              </button>
-            </div>
-            <div style={{ fontSize: 12, color: '#9CA3AF', lineHeight: 1.7 }}>{textoHC}</div>
-          </div>
-        )}
-      </div>
-
-      <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <button onClick={onVerChat} style={{ width: '100%', background: 'transparent', color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer' }}>
-          Consultar a POSTA sobre este paciente
-        </button>
-        <button onClick={onSiguiente} style={{ width: '100%', background: S.verdeOsc, color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 13, fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
-          + Siguiente paciente
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function PantallaChat({ paciente, turnoId, onVolver }) {
-  const [mensajes, setMensajes] = useState([{ role: 'assistant', content: `Evolución de ${paciente.nombre} lista. ¿Querés consultar algo sobre este paciente?` }])
-  const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  async function enviar() {
-    const texto = input.trim()
-    if (!texto || loading) return
-    setInput('')
+  async function enviarChat(texto) {
+    if (!texto.trim() || loadingChat) return
+    setInputChat('')
     const nuevos = [...mensajes, { role: 'user', content: texto }]
     setMensajes(nuevos)
-    setLoading(true)
+    setLoadingChat(true)
     try {
       const res = await fetch(`${API}/posta/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           pregunta: texto,
-          contexto_paciente: `Paciente: ${paciente.nombre}, ${paciente.edad} años. Diagnóstico: ${paciente.dx}. Evolución: ${paciente.evolucion || ''}`,
+          contexto_paciente: `Paciente: ${paciente.nombre}, ${paciente.edad} años, Cama ${paciente.cama}. Diagnóstico: ${paciente.dx}.\n\nCONTEXTO COMPLETO DEL PASE:\n${contextoCompleto}`,
           historial: nuevos.slice(-6),
         })
       })
       const data = await res.json()
       setMensajes([...nuevos, { role: 'assistant', content: data.respuesta || 'Error al procesar.' }])
     } catch {
-      setMensajes([...nuevos, { role: 'assistant', content: 'No pude conectarme. Intentá de nuevo.' }])
+      setMensajes([...nuevos, { role: 'assistant', content: 'No pude conectarme.' }])
     }
-    setLoading(false)
+    setLoadingChat(false)
   }
+
+  async function iniciarGrabacionConsulta() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : {})
+      chunksConsultaRef.current = []
+      mr.ondataavailable = e => { if (e.data.size > 0) chunksConsultaRef.current.push(e.data) }
+      mr.start(500)
+      mediaConsultaRef.current = mr
+      setGrabandoConsulta(true)
+    } catch (e) {
+      alert('No se pudo acceder al micrófono: ' + e.message)
+    }
+  }
+
+  async function detenerGrabacionConsulta() {
+    if (!mediaConsultaRef.current) return
+    mediaConsultaRef.current.stop()
+    mediaConsultaRef.current.stream.getTracks().forEach(t => t.stop())
+    setGrabandoConsulta(false)
+    await new Promise(r => setTimeout(r, 500))
+    const mimeType = chunksConsultaRef.current[0]?.type || 'audio/webm'
+    const blob = new Blob(chunksConsultaRef.current, { type: mimeType })
+    if (blob.size < 500) return
+    const ext = mimeType.includes('mp4') ? 'consulta.mp4' : 'consulta.webm'
+    const formData = new FormData()
+    formData.append('audio', blob, ext)
+    formData.append('turno_id', turnoId)
+    formData.append('cama', paciente.cama)
+    formData.append('nombre', paciente.nombre)
+    formData.append('dni', paciente.dni || '')
+    formData.append('edad', paciente.edad || '')
+    formData.append('dx', paciente.dx || '')
+    formData.append('rol', rol)
+    try {
+      const res = await fetch(`${API}/posta/audio`, { method: 'POST', body: formData })
+      const data = await res.json()
+      if (data.transcripcion) await enviarChat(data.transcripcion)
+    } catch {}
+  }
+
+  async function iniciarGrabacionPase() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : {})
+      chunksPaseRef.current = []
+      mr.ondataavailable = e => { if (e.data.size > 0) chunksPaseRef.current.push(e.data) }
+      mr.start(500)
+      mediaPaseRef.current = mr
+      setGrabandoPase(true)
+    } catch (e) {
+      alert('No se pudo acceder al micrófono: ' + e.message)
+    }
+  }
+
+  async function detenerGrabacionPase() {
+    if (!mediaPaseRef.current) return
+    mediaPaseRef.current.stop()
+    mediaPaseRef.current.stream.getTracks().forEach(t => t.stop())
+    setGrabandoPase(false)
+    await new Promise(r => setTimeout(r, 500))
+    const mimeType = chunksPaseRef.current[0]?.type || 'audio/webm'
+    const blob = new Blob(chunksPaseRef.current, { type: mimeType })
+    if (blob.size < 500) return
+    const ext = mimeType.includes('mp4') ? 'pase.mp4' : 'pase.webm'
+    const formData = new FormData()
+    formData.append('audio', blob, ext)
+    formData.append('turno_id', turnoId)
+    formData.append('cama', paciente.cama)
+    formData.append('nombre', paciente.nombre)
+    formData.append('dni', paciente.dni || '')
+    formData.append('edad', paciente.edad || '')
+    formData.append('dx', paciente.dx || '')
+    formData.append('rol', rol)
+    try {
+      const resAudio = await fetch(`${API}/posta/audio`, { method: 'POST', body: formData })
+      if (!resAudio.ok) return
+      const resAnalisis = await fetch(`${API}/posta/analizar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ turno_id: turnoId, cama: paciente.cama, nombre: paciente.nombre, edad: paciente.edad, dx: paciente.dx, rol })
+      })
+      if (resAnalisis.ok) {
+        const data = await resAnalisis.json()
+        setContextoCompleto(prev => prev + '\n\nACTUALIZACIÓN:\n' + (data.evolucion || ''))
+        alert('Evolución actualizada con el nuevo audio.')
+      }
+    } catch {}
+  }
+
+  const TABS = [
+    { id: 'evolucion', label: 'Evolución hoy' },
+    { id: 'historia', label: 'Historia clínica' },
+    { id: 'consultar', label: 'Consultar' },
+  ]
 
   return (
     <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ background: S.verdeCard, padding: '14px 16px', borderBottom: `0.5px solid ${S.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: S.verde, letterSpacing: '0.08em' }}>POSTA</div>
-          <div style={{ fontSize: 10, color: S.muted }}>Cama {paciente.cama} · {paciente.nombre}</div>
+      <div style={{ background: S.verdeCard, padding: '12px 16px', borderBottom: `0.5px solid ${S.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button onClick={onVolver} style={{ background: 'none', border: 'none', color: S.muted, fontSize: 24, cursor: 'pointer', padding: 0, lineHeight: 1 }}>‹</button>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: S.verde, letterSpacing: '0.06em' }}>POSTA</div>
+          <div style={{ fontSize: 11, color: S.muted }}>Cama {paciente.cama} · {paciente.nombre}</div>
         </div>
-        <button onClick={onVolver} style={{ background: 'none', border: 'none', color: S.muted, fontSize: 12, cursor: 'pointer' }}>← Volver</button>
+        <div style={{ fontSize: 10, color: S.verde, background: 'rgba(82,183,136,0.12)', padding: '3px 10px', borderRadius: 99, border: `0.5px solid rgba(82,183,136,0.2)` }}>
+          {paciente.dx?.split('·')[1]?.trim() || 'Internado'}
+        </div>
       </div>
-      <div style={{ flex: 1, padding: '14px 16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {mensajes.map((m, i) => (
-          <div key={i} style={{ maxWidth: '85%', alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', background: m.role === 'user' ? S.verdeOsc : S.verdeCard, border: `0.5px solid ${m.role === 'user' ? 'rgba(82,183,136,0.3)' : S.border}`, padding: '10px 14px', borderRadius: 12, fontSize: 13, lineHeight: 1.6, color: S.text }}>
-            {m.role === 'assistant' && <div style={{ fontSize: 9, color: S.verde, marginBottom: 4, letterSpacing: '0.06em', fontWeight: 500 }}>POSTA</div>}
-            {m.content}
-          </div>
+
+      <div style={{ display: 'flex', borderBottom: `0.5px solid ${S.border}`, padding: '0 16px', background: S.bg }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} style={{ fontSize: 12, padding: '10px 12px', color: tab === t.id ? S.verde : S.muted, background: 'none', border: 'none', cursor: 'pointer', borderBottom: `2px solid ${tab === t.id ? S.verde : 'transparent'}`, marginBottom: -1 }}>
+            {t.label}
+          </button>
         ))}
-        {loading && <div style={{ alignSelf: 'flex-start', background: S.verdeCard, border: `0.5px solid ${S.border}`, padding: '10px 14px', borderRadius: 12, fontSize: 13, color: S.muted, fontStyle: 'italic' }}>Analizando...</div>}
       </div>
-      <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}`, display: 'flex', gap: 8 }}>
-        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && enviar()} placeholder="Preguntá sobre el paciente..." style={{ flex: 1, background: S.verdeCard, border: `0.5px solid ${S.border}`, borderRadius: 8, padding: '9px 12px', fontSize: 13, color: S.text, outline: 'none' }} />
-        <button onClick={enviar} disabled={loading || !input.trim()} style={{ width: 36, height: 36, borderRadius: '50%', background: S.verdeOsc, border: 'none', color: S.verde, cursor: 'pointer', fontSize: 16 }}>↑</button>
-      </div>
+
+      {tab === 'evolucion' && (
+        <>
+          <div style={{ flex: 1, padding: '14px 16px', overflowY: 'auto' }}>
+            <div style={{ background: S.verdeCard, border: `0.5px solid ${S.border}`, borderRadius: 10, padding: '10px 13px', marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: S.muted, marginBottom: 2 }}>Cama {paciente.cama} · {paciente.edad} años · DNI {paciente.dni}</div>
+              <div style={{ fontSize: 14, fontWeight: 500, color: S.text, marginBottom: 2 }}>{paciente.nombre}</div>
+              <div style={{ fontSize: 12, color: S.verde }}>{paciente.dx}</div>
+            </div>
+            {secciones.map((sec, i) => (
+              <div key={i} style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 10, fontWeight: 500, color: colores[sec.titulo] || S.verde, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6, paddingLeft: 8, borderLeft: `2px solid ${colores[sec.titulo] || S.verde}` }}>
+                  {sec.titulo}
+                </div>
+                <div style={{ fontSize: 13, color: S.text, lineHeight: 1.6 }}>
+                  {sec.contenido.split('\n').filter(l => l.trim()).map((l, j) => (
+                    <div key={j} style={{ display: 'flex', gap: 6, marginBottom: 3 }}>
+                      <span style={{ color: S.muted, flexShrink: 0 }}>·</span>
+                      <span>{l.replace(/^[-•]\s*/, '')}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}` }}>
+            <div style={{ fontSize: 11, color: S.muted, textAlign: 'center', marginBottom: 8 }}>Agregá más contexto al pase</div>
+            <button
+              onClick={grabandoPase ? detenerGrabacionPase : iniciarGrabacionPase}
+              style={{ width: '100%', background: grabandoPase ? 'rgba(239,68,68,0.06)' : S.verdeCard, border: `0.5px solid ${grabandoPase ? 'rgba(239,68,68,0.4)' : 'rgba(82,183,136,0.2)'}`, borderRadius: 10, padding: 12, fontSize: 13, color: grabandoPase ? '#EF4444' : S.muted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <span>🎙</span>
+              <span>{grabandoPase ? 'Grabando... tocá para detener y actualizar' : 'Agregar al pase por audio'}</span>
+            </button>
+          </div>
+        </>
+      )}
+
+      {tab === 'historia' && (
+        <div style={{ flex: 1, padding: '14px 16px', overflowY: 'auto' }}>
+          <div style={{ fontSize: 11, color: S.muted, marginBottom: 12 }}>Evoluciones anteriores — solo lectura</div>
+          <div style={{ background: S.verdeCard, border: `0.5px solid rgba(82,183,136,0.1)`, borderRadius: 8, padding: '10px 12px', marginBottom: 10, opacity: 0.5 }}>
+            <div style={{ fontSize: 10, color: S.muted, marginBottom: 4 }}>Turno anterior</div>
+            <div style={{ fontSize: 12, color: '#9CA3AF', lineHeight: 1.6 }}>Sin registros anteriores en POSTA para este paciente.</div>
+          </div>
+          <div style={{ fontSize: 10, fontWeight: 500, color: S.verde, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10, paddingLeft: 8, borderLeft: `2px solid ${S.verde}` }}>
+            Evolución de hoy — para copiar
+          </div>
+          {textoHC ? (
+            <div style={{ background: 'rgba(82,183,136,0.04)', border: `0.5px solid rgba(82,183,136,0.2)`, borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div style={{ fontSize: 10, color: S.muted, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Lista para copiar</div>
+                <button onClick={copiar} style={{ fontSize: 11, color: copiado ? S.verde : S.muted, background: 'none', border: 'none', cursor: 'pointer' }}>
+                  {copiado ? '✓ Copiado' : 'Copiar'}
+                </button>
+              </div>
+              <div style={{ fontSize: 12, color: '#9CA3AF', lineHeight: 1.7 }}>{textoHC}</div>
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: S.muted }}>El texto para historia clínica aparece después de finalizar el pase.</div>
+          )}
+        </div>
+      )}
+
+      {tab === 'consultar' && (
+        <>
+          <div style={{ flex: 1, padding: '14px 16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {mensajes.map((m, i) => (
+              <div key={i} style={{ maxWidth: '85%', alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', background: m.role === 'user' ? S.verdeOsc : S.verdeCard, border: `0.5px solid ${m.role === 'user' ? 'rgba(82,183,136,0.3)' : S.border}`, padding: '10px 14px', borderRadius: 12, fontSize: 13, lineHeight: 1.6, color: S.text }}>
+                {m.role === 'assistant' && <div style={{ fontSize: 9, color: S.verde, marginBottom: 4, letterSpacing: '0.06em', fontWeight: 500 }}>POSTA</div>}
+                {m.content}
+              </div>
+            ))}
+            {loadingChat && (
+              <div style={{ alignSelf: 'flex-start', background: S.verdeCard, border: `0.5px solid ${S.border}`, padding: '10px 14px', borderRadius: 12, fontSize: 13, color: S.muted, fontStyle: 'italic' }}>
+                Analizando...
+              </div>
+            )}
+          </div>
+          <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                value={inputChat}
+                onChange={e => setInputChat(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && enviarChat(inputChat)}
+                placeholder="Preguntá por texto..."
+                style={{ flex: 1, background: S.verdeCard, border: `0.5px solid ${S.border}`, borderRadius: 8, padding: '9px 12px', fontSize: 13, color: S.text, outline: 'none' }}
+              />
+              <button onClick={() => enviarChat(inputChat)} disabled={loadingChat || !inputChat.trim()} style={{ width: 36, height: 36, borderRadius: '50%', background: S.verdeOsc, border: 'none', color: S.verde, cursor: 'pointer', fontSize: 16 }}>↑</button>
+            </div>
+            <button
+              onClick={grabandoConsulta ? detenerGrabacionConsulta : iniciarGrabacionConsulta}
+              style={{ width: '100%', background: grabandoConsulta ? 'rgba(239,68,68,0.06)' : S.verdeCard, border: `0.5px solid ${grabandoConsulta ? 'rgba(239,68,68,0.4)' : 'rgba(82,183,136,0.2)'}`, borderRadius: 10, padding: 12, fontSize: 13, color: grabandoConsulta ? '#EF4444' : S.muted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <span>🎙</span>
+              <span>{grabandoConsulta ? 'Grabando... tocá para enviar' : 'Preguntá por audio'}</span>
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -561,15 +702,14 @@ export default function App() {
     return <PantallaPase paciente={pacienteActual} rol={rol} turnoId={turnoId} onFinalizar={finalizarPase} onCancelar={() => setPantalla('panel')} />
   }
 
-  if (pantalla === 'evolucion' && pacienteActual) {
-    return <PantallaEvolucion paciente={pacienteActual} rol={rol} turnoId={turnoId}
+  if ((pantalla === 'evolucion' || pantalla === 'chat') && pacienteActual) {
+    return <PantallaFichaPaciente
+      paciente={pacienteActual}
+      rol={rol}
+      turnoId={turnoId}
       onSiguiente={() => { setPacienteActual(null); setShowModal(true); setPantalla('panel') }}
-      onVerChat={() => setPantalla('chat')}
-      onVolver={() => setPantalla('pase')} />
-  }
-
-  if (pantalla === 'chat' && pacienteActual) {
-    return <PantallaChat paciente={pacienteActual} turnoId={turnoId} onVolver={() => setPantalla('evolucion')} />
+      onVolver={() => setPantalla('panel')}
+    />
   }
 
   return (
