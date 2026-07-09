@@ -91,58 +91,45 @@ function PantallaPase({ paciente, rol, turnoId, onFinalizar, onCancelar }) {
 
   const iniciarGrabacion = useCallback(async () => {
     try {
-      console.log('Solicitando permiso de micrófono...')
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          sampleRate: 16000
-        }
+        audio: { echoCancellation: true, noiseSuppression: true }
       })
-      console.log('Permiso concedido, iniciando grabación...')
 
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'
         : MediaRecorder.isTypeSupported('audio/webm')
           ? 'audio/webm'
-          : MediaRecorder.isTypeSupported('audio/mp4')
-            ? 'audio/mp4'
-            : ''
+          : 'audio/mp4'
 
-      console.log('MimeType seleccionado:', mimeType)
-
-      const options = mimeType ? { mimeType } : {}
-      const mr = new MediaRecorder(stream, options)
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : {})
       chunksRef.current = []
 
       mr.ondataavailable = e => {
-        console.log('Chunk recibido:', e.data.size, 'bytes')
         if (e.data.size > 0) chunksRef.current.push(e.data)
       }
 
+      mr.onstart = () => {
+        setGrabando(true)
+        setError(null)
+        let count = 0
+        timerRef.current = setInterval(() => {
+          count++
+          setSegundos(count)
+        }, 1000)
+      }
+
       mr.onerror = e => {
-        console.error('Error en MediaRecorder:', e)
         setError('Error en la grabación: ' + e.message)
       }
 
-      mr.start(500)
-      console.log('MediaRecorder iniciado')
       mediaRef.current = mr
-      setGrabando(true)
-      setError(null)
-      timerRef.current = setInterval(() => {
-        if (mediaRef.current && mediaRef.current.state === 'recording') {
-          setSegundos(s => s + 1)
-        }
-      }, 1000)
+      mr.start(500)
+
     } catch (e) {
-      console.error('Error al iniciar grabación:', e.name, e.message)
       if (e.name === 'NotAllowedError') {
-        setError('Permiso de micrófono denegado. Andá a configuración del navegador y permitilo.')
-      } else if (e.name === 'NotFoundError') {
-        setError('No se encontró micrófono en este dispositivo.')
+        setError('Permiso de micrófono denegado.')
       } else {
-        setError('Error al iniciar grabación: ' + e.message)
+        setError('Error al iniciar: ' + e.message)
       }
     }
   }, [])
