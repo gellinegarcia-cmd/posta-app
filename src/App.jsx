@@ -569,7 +569,7 @@ Total pacientes: ${pasados.length}
 ${sep}`
 }
 
-function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVolver, onSiguiente }) {
+function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVolver, onSiguiente, onActualizarPaciente }) {
   const [editandoPDF, setEditandoPDF] = useState(false)
   const [textoPDF, setTextoPDF] = useState('')
   const [tab, setTab] = useState('evolucion')
@@ -842,20 +842,60 @@ Respondé siempre en el contexto de este paciente específico. Sé preciso y cer
           <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
             <button
               onClick={grabandoPase ? async () => {
-                mediaPaseRef.current?.stop()
-                mediaPaseRef.current?.stream.getTracks().forEach(t => t.stop())
+                if (!mediaPaseRef.current) return
+                mediaPaseRef.current.stop()
+                mediaPaseRef.current.stream.getTracks().forEach(t => t.stop())
                 setGrabandoPase(false)
+                await new Promise(r => setTimeout(r, 800))
+
+                const mimeType = chunksPaseRef.current[0]?.type || 'audio/webm'
+                const blob = new Blob(chunksPaseRef.current, { type: mimeType })
+                if (blob.size < 500) return
+
+                const fd = new FormData()
+                fd.append('audio', blob, mimeType.includes('mp4') ? 'pase.mp4' : 'pase.webm')
+                fd.append('turno_id', turnoId)
+                fd.append('cama', paciente.cama)
+                fd.append('nombre', paciente.nombre)
+                fd.append('dni', paciente.dni || '')
+                fd.append('edad', paciente.edad || '')
+                fd.append('dx', paciente.dx || '')
+                fd.append('rol', rol)
+
+                try {
+                  const resAudio = await fetch(`${API}/posta/audio`, { method: 'POST', body: fd })
+                  if (!resAudio.ok) throw new Error('Error subiendo audio')
+
+                  const resAnalisis = await fetch(`${API}/posta/analizar`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      turno_id: turnoId,
+                      cama: paciente.cama,
+                      nombre: paciente.nombre,
+                      edad: paciente.edad,
+                      dx: paciente.dx,
+                      rol
+                    })
+                  })
+                  const data = await resAnalisis.json()
+                  if (data.evolucion) {
+                    onActualizarPaciente({ ...paciente, evolucion: data.evolucion, estado: 'pasado' })
+                  }
+                } catch(e) {
+                  alert('Error al procesar: ' + e.message)
+                }
               } : async () => {
                 try {
                   const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-                  const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm'
+                  const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/mp4'
                   const mr = new MediaRecorder(stream, { mimeType })
                   chunksPaseRef.current = []
                   mr.ondataavailable = e => { if (e.data.size > 0) chunksPaseRef.current.push(e.data) }
                   mr.start(500)
                   mediaPaseRef.current = mr
                   setGrabandoPase(true)
-                } catch (e) { alert('Error micrófono') }
+                } catch (e) { alert('Error micrófono: ' + e.message) }
               }}
               style={{ width: '100%', background: grabandoPase ? 'rgba(239,68,68,0.06)' : S.verdeCard, border: `0.5px solid ${grabandoPase ? 'rgba(239,68,68,0.4)' : 'rgba(82,183,136,0.2)'}`, borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
               <div style={{ width: 40, height: 40, borderRadius: '50%', background: grabandoPase ? 'rgba(239,68,68,0.15)' : 'rgba(82,183,136,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>🎙</div>
@@ -1601,6 +1641,10 @@ export default function App() {
       medico={medico}
       onVolver={() => setPantalla('panel')}
       onSiguiente={() => { setPacienteActual(null); setShowModal(true); setPantalla('panel') }}
+      onActualizarPaciente={pacienteActualizado => {
+        setPacientes(prev => prev.map(p => p.id === pacienteActualizado.id ? pacienteActualizado : p))
+        setPacienteActual(pacienteActualizado)
+      }}
     />
   )
 
