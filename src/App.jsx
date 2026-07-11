@@ -573,6 +573,7 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVo
   const [editandoPDF, setEditandoPDF] = useState(false)
   const [textoPDF, setTextoPDF] = useState('')
   const [tab, setTab] = useState('evolucion')
+  const [evolucionHoy, setEvolucionHoy] = useState(paciente.evolucion || null)
   const [mensajes, setMensajes] = useState(() => {
     try {
       const guardados = localStorage.getItem(`posta_chat_${paciente.id}`)
@@ -590,13 +591,12 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVo
   const [grabandoConsulta, setGrabandoConsulta] = useState(false)
   const [grabandoPase, setGrabandoPase] = useState(false)
   const [contextoCompleto, setContextoCompleto] = useState(paciente.evolucion || '')
-  const [copiado, setCopiado] = useState(false)
   const mediaConsultaRef = useRef(null)
   const chunksConsultaRef = useRef([])
   const mediaPaseRef = useRef(null)
   const chunksPaseRef = useRef([])
 
-  const evolucion = paciente.evolucion || ''
+  const evolucion = evolucionHoy || paciente.evolucion || ''
   const partes = evolucion.split('---EVOLUCIÓN PARA HISTORIA CLÍNICA---')
   const seccionesCli = partes[0] || ''
   const textoHC = partes[1]?.trim() || ''
@@ -623,12 +623,6 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVo
       .then(data => { if (data?.contexto) setContextoCompleto(data.contexto + '\n\nEVOLUCIÓN:\n' + (paciente.evolucion || '')) })
       .catch(() => {})
   }, [])
-
-  function copiar() {
-    navigator.clipboard.writeText(textoHC || evolucion)
-    setCopiado(true)
-    setTimeout(() => setCopiado(false), 2000)
-  }
 
   function abrirEditorPDF() {
     try {
@@ -880,7 +874,10 @@ Respondé siempre en el contexto de este paciente específico. Sé preciso y cer
                   })
                   const data = await resAnalisis.json()
                   if (data.evolucion) {
-                    onActualizarPaciente({ ...paciente, evolucion: data.evolucion, estado: 'pasado' })
+                    setEvolucionHoy(data.evolucion)
+                    const pacienteActualizado = { ...paciente, evolucion: data.evolucion, estado: 'pasado' }
+                    onActualizarPaciente(pacienteActualizado)
+                    localStorage.setItem('posta_paciente_actual', JSON.stringify(pacienteActualizado))
                   }
                 } catch(e) {
                   alert('Error al procesar: ' + e.message)
@@ -904,6 +901,19 @@ Respondé siempre en el contexto de este paciente específico. Sé preciso y cer
                 <div style={{ fontSize: 11, color: S.muted, marginTop: 2 }}>{grabandoPase ? 'Hablá con normalidad' : 'Tocá para agregar al pase'}</div>
               </div>
             </button>
+            {evolucionHoy && (
+              <button
+                onClick={async () => {
+                  if (!window.confirm('¿Cerrás la evolución de hoy de este paciente? Pasará a la historia clínica.')) return
+                  const pacienteActualizado = { ...paciente, evolucion: evolucionHoy, estado: 'pasado' }
+                  onActualizarPaciente(pacienteActualizado)
+                  localStorage.setItem('posta_paciente_actual', JSON.stringify(pacienteActualizado))
+                  setEvolucionHoy(null)
+                }}
+                style={{ width: '100%', background: 'transparent', color: S.muted, border: `0.5px solid ${S.border}`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer', marginTop: 8 }}>
+                Cerrar evolución de hoy
+              </button>
+            )}
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={abrirEditorPDF} style={{ flex: 1, background: 'transparent', color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer' }}>
                 Descargar PDF
@@ -923,28 +933,6 @@ Respondé siempre en el contexto de este paciente específico. Sé preciso y cer
             <div style={{ fontSize: 10, color: S.muted, marginBottom: 4 }}>Sin registros anteriores en POSTA</div>
             <div style={{ fontSize: 12, color: '#9CA3AF', lineHeight: 1.6 }}>Las evoluciones previas aparecerán aquí en los próximos turnos.</div>
           </div>
-          {textoHC && (
-            <>
-              <div style={{ fontSize: 10, fontWeight: 500, color: S.verde, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10, paddingLeft: 8, borderLeft: `2px solid ${S.verde}` }}>
-                Evolución de hoy · para copiar
-              </div>
-              <div style={{ background: 'rgba(82,183,136,0.04)', border: `0.5px solid rgba(82,183,136,0.2)`, borderRadius: 10, padding: '12px 14px', marginBottom: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <div style={{ fontSize: 10, color: S.muted, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Historia clínica</div>
-                  <button onClick={copiar} style={{ fontSize: 11, color: copiado ? S.verde : S.muted, background: 'none', border: 'none', cursor: 'pointer' }}>
-                    {copiado ? '✓ Copiado' : 'Copiar'}
-                  </button>
-                </div>
-                <div style={{ fontSize: 12, color: '#9CA3AF', lineHeight: 1.7 }}>{textoHC}</div>
-                <div style={{ marginTop: 10, paddingTop: 10, borderTop: `0.5px solid rgba(82,183,136,0.1)`, fontSize: 11, color: S.muted }}>
-                  {medico.nombre} · {medico.especialidad} · Mat. Prov. {medico.matriculaProv}
-                </div>
-              </div>
-              <button onClick={abrirEditorPDF} style={{ width: '100%', background: S.verdeOsc, color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 12, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
-                Revisar y descargar PDF →
-              </button>
-            </>
-          )}
         </div>
       )}
 
@@ -1468,10 +1456,12 @@ export default function App() {
     const turnoGuardado = localStorage.getItem('posta_turno_info')
     const rolGuardado = localStorage.getItem('posta_rol')
     const servicioGuardado = localStorage.getItem('posta_servicio_id')
+    const pacienteGuardado = localStorage.getItem('posta_paciente_actual')
     if (!medicoGuardado) return 'registro'
     if (!rolGuardado) return 'rol'
     if (!turnoGuardado) return 'turno'
     if (!servicioGuardado) return 'servicio'
+    if (pacienteGuardado) return 'ficha'
     return 'panel-servicio'
   })
   const [showModal, setShowModal] = useState(false)
