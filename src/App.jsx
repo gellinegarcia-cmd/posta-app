@@ -34,6 +34,16 @@ function fechaHoy() {
   return new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
+function limpiarTexto(texto) {
+  if (!texto) return ''
+  return texto
+    .replace(/###\s*/g, '')
+    .replace(/\*\*/g, '')
+    .replace(/^-\s+/gm, '• ')
+    .replace(/^•\s*/gm, '• ')
+    .trim()
+}
+
 function PantallaRol({ onSelect }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, background: S.bg }}>
@@ -419,23 +429,57 @@ function PantallaPase({ paciente, rol, turnoId, onFinalizar, onCancelar }) {
 function generarTextoPDF(paciente, turnoInfo, medico) {
   const evolucion = paciente.evolucion || ''
   const partes = evolucion.split('---EVOLUCIÓN PARA HISTORIA CLÍNICA---')
-  const textoHC = partes[1]?.trim() || evolucion
+  const seccionesRaw = partes[0] || ''
+  const textoHC = partes[1]?.trim() || ''
+
+  const secciones = seccionesRaw.split('###').filter(s => s.trim()).map(s => {
+    const lineas = s.trim().split('\n').filter(l => l.trim())
+    const titulo = lineas[0]?.trim() || ''
+    const contenido = lineas.slice(1).map(l => '  • ' + l.replace(/^[-•*]\s*/, '').trim()).join('\n')
+    return titulo ? `${titulo.toUpperCase()}\n${contenido}` : ''
+  }).filter(Boolean).join('\n\n')
+
+  const separador = '─'.repeat(48)
+
   return `EVOLUCIÓN MÉDICA
-${turnoInfo.institucion} · ${turnoInfo.servicio}
-${fechaHoy()} · Turno ${turnoInfo.turno}
+${separador}
+Institución : ${turnoInfo.institucion}
+Servicio    : ${turnoInfo.servicio}
+Fecha       : ${fechaHoy()} · Turno ${turnoInfo.turno}
+${separador}
+Paciente    : ${paciente.nombre}
+Edad / DNI  : ${paciente.edad} años · DNI ${paciente.dni}
+Cama        : ${paciente.cama}
+Diagnóstico : ${paciente.dx}
+${separador}
 
-Paciente: ${paciente.nombre} · ${paciente.edad} años · DNI ${paciente.dni}
-Cama ${paciente.cama} · ${paciente.dx}
+${secciones}
 
-${textoHC}
+${separador}
+PARA HISTORIA CLÍNICA
+${separador}
+${limpiarTexto(textoHC)}
 
+${separador}
 ${medico.nombre}
-${medico.especialidad} · Mat. Prov. ${medico.matriculaProv}${medico.matriculaNac ? ` · Mat. Nac. ${medico.matriculaNac}` : ''}`
+${medico.especialidad}${medico.matriculaProv ? ` · Mat. Prov. ${medico.matriculaProv}` : ''}${medico.matriculaNac ? ` · Mat. Nac. ${medico.matriculaNac}` : ''}
+${separador}`
 }
 
 function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVolver, onSiguiente }) {
   const [tab, setTab] = useState('evolucion')
-  const [mensajes, setMensajes] = useState([{ role: 'assistant', content: `Analicemos juntos a ${paciente.nombre}. Estoy al tanto de todo lo que pasó hoy. Preguntame lo que necesitás.` }])
+  const [mensajes, setMensajes] = useState(() => {
+    try {
+      const guardados = localStorage.getItem(`posta_chat_${paciente.id}`)
+      if (guardados) return JSON.parse(guardados)
+    } catch {}
+    return [{ role: 'assistant', content: `Analicemos juntos a ${paciente.nombre}. Estoy al tanto de todo lo que pasó hoy. Preguntame lo que necesitás.` }]
+  })
+
+  useEffect(() => {
+    localStorage.setItem(`posta_chat_${paciente.id}`, JSON.stringify(mensajes))
+  }, [mensajes, paciente.id])
+
   const [inputChat, setInputChat] = useState('')
   const [loadingChat, setLoadingChat] = useState(false)
   const [grabandoConsulta, setGrabandoConsulta] = useState(false)
@@ -511,8 +555,21 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVo
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           pregunta: texto,
-          contexto_paciente: `Paciente: ${paciente.nombre}, ${paciente.edad} años, Cama ${paciente.cama}. Diagnóstico: ${paciente.dx}. Servicio: ${turnoInfo.servicio}.\n\nCONTEXTO DEL PASE:\n${contextoCompleto}`,
-          historial: nuevos.slice(-6),
+          contexto_paciente: `Sos el asistente clínico POSTA. Conocés todo sobre este paciente y su guardia de hoy.
+DATOS DEL PACIENTE:
+- Nombre: ${paciente.nombre}
+- Edad: ${paciente.edad} años
+- DNI: ${paciente.dni}
+- Cama: ${paciente.cama}
+- Diagnóstico: ${paciente.dx}
+- Servicio: ${turnoInfo?.servicio || ''}
+- Institución: ${turnoInfo?.institucion || ''}
+
+CONTEXTO DEL PASE DE HOY:
+${contextoCompleto}
+
+Respondé siempre en el contexto de este paciente específico. Sé preciso y cercano.`,
+          historial: nuevos.slice(-8),
         })
       })
       const data = await res.json()
@@ -634,7 +691,7 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVo
                   {sec.contenido.split('\n').filter(l => l.trim()).map((l, j) => (
                     <div key={j} style={{ display: 'flex', gap: 6, marginBottom: 3 }}>
                       <span style={{ color: S.muted, flexShrink: 0 }}>·</span>
-                      <span>{l.replace(/^[-•]\s*/, '')}</span>
+                      <span>{l.replace(/^[-•*]\s*/, '').replace(/\*\*/g, '')}</span>
                     </div>
                   ))}
                 </div>
@@ -754,21 +811,42 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVo
 
 export default function App() {
   const [rol, setRol] = useState(null)
-  const [pantalla, setPantalla] = useState('registro')
   const [medico, setMedico] = useState(null)
-  const [turnoInfo, setTurnoInfo] = useState(null)
-  const [pacientes, setPacientes] = useState([])
-  const [pacienteActual, setPacienteActual] = useState(null)
+  const [pacientes, setPacientes] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('posta_pacientes') || '[]') } catch { return [] }
+  })
+  const [turnoInfo, setTurnoInfo] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('posta_turno_info') || 'null') } catch { return null }
+  })
+  const [pacienteActual, setPacienteActual] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('posta_paciente_actual') || 'null') } catch { return null }
+  })
+  const [pantalla, setPantalla] = useState(() => {
+    const turnoGuardado = localStorage.getItem('posta_turno_info')
+    const medicoGuardado = localStorage.getItem('posta_medico')
+    if (!medicoGuardado) return 'registro'
+    if (!turnoGuardado) return 'rol'
+    return 'panel'
+  })
   const [showModal, setShowModal] = useState(false)
   const [turnoId] = useState(generarTurnoId)
 
   useEffect(() => {
     const medicoGuardado = localStorage.getItem('posta_medico')
-    if (medicoGuardado) {
-      setMedico(JSON.parse(medicoGuardado))
-      setPantalla('rol')
-    }
+    if (medicoGuardado) setMedico(JSON.parse(medicoGuardado))
   }, [])
+
+  useEffect(() => {
+    localStorage.setItem('posta_pacientes', JSON.stringify(pacientes))
+  }, [pacientes])
+
+  useEffect(() => {
+    if (turnoInfo) localStorage.setItem('posta_turno_info', JSON.stringify(turnoInfo))
+  }, [turnoInfo])
+
+  useEffect(() => {
+    if (pacienteActual) localStorage.setItem('posta_paciente_actual', JSON.stringify(pacienteActual))
+  }, [pacienteActual])
 
   useEffect(() => {
     if (pantalla !== 'panel' && pantalla !== 'ficha') return
@@ -783,7 +861,8 @@ export default function App() {
   function guardarMedico(datos) {
     localStorage.setItem('posta_medico', JSON.stringify(datos))
     setMedico(datos)
-    setPantalla('rol')
+    const turnoGuardado = localStorage.getItem('posta_turno_info')
+    setPantalla(turnoGuardado ? 'panel' : 'rol')
   }
 
   function agregarPaciente(form) {
@@ -819,7 +898,7 @@ export default function App() {
 
   if (!medico && pantalla === 'registro') return <PantallaRegistro onGuardar={guardarMedico} />
   if (!rol) return <PantallaRol onSelect={r => { setRol(r); setPantalla('turno') }} />
-  if (pantalla === 'turno') return <PantallaInicioTurno medico={medico} onComenzar={info => { setTurnoInfo(info); setPantalla('panel') }} />
+  if (pantalla === 'turno') return <PantallaInicioTurno medico={medico} onComenzar={info => { setTurnoInfo(info); localStorage.setItem('posta_turno_info', JSON.stringify(info)); setPantalla('panel') }} />
   if (pantalla === 'pase' && pacienteActual) return <PantallaPase paciente={pacienteActual} rol={rol} turnoId={turnoId} onFinalizar={finalizarPase} onCancelar={() => setPantalla('panel')} />
   if (pantalla === 'ficha' && pacienteActual) return (
     <PantallaFichaPaciente
