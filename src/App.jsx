@@ -70,7 +70,8 @@ function PantallaRol({ onSelect, onVolver, onCambiarProfesional }) {
   )
 }
 
-function PantallaRegistro({ onGuardar, onSaltear }) {
+function PantallaRegistro({ onGuardar, onSaltear, onVolver }) {
+  const hayMedicoGuardado = !!localStorage.getItem('posta_medico')
   const [form, setForm] = useState(() => {
     try {
       const guardado = localStorage.getItem('posta_medico')
@@ -88,9 +89,14 @@ function PantallaRegistro({ onGuardar, onSaltear }) {
   ]
   return (
     <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ background: S.verdeCard, padding: '14px 16px', borderBottom: `0.5px solid ${S.border}`, textAlign: 'center' }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: S.verde, letterSpacing: '0.08em' }}>POSTA</div>
-        <div style={{ fontSize: 11, color: S.muted, marginTop: 2 }}>Tus datos aparecerán al pie de cada evolución</div>
+      <div style={{ background: S.verdeCard, padding: '14px 16px', borderBottom: `0.5px solid ${S.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+        {hayMedicoGuardado && (
+          <button onClick={onVolver} style={{ background: 'none', border: 'none', color: S.muted, fontSize: 24, cursor: 'pointer', padding: 0, lineHeight: 1 }}>‹</button>
+        )}
+        <div style={{ flex: 1, textAlign: hayMedicoGuardado ? 'left' : 'center' }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: S.verde, letterSpacing: '0.08em' }}>POSTA</div>
+          <div style={{ fontSize: 11, color: S.muted, marginTop: 2 }}>Tus datos aparecerán al pie de cada evolución</div>
+        </div>
       </div>
       <div style={{ flex: 1, padding: 16 }}>
         {campos.map(([k, l, p]) => (
@@ -1084,6 +1090,13 @@ export default function App() {
         const rolGuardado = localStorage.getItem('posta_rol')
         const turnoGuardado = localStorage.getItem('posta_turno_info')
         setPantalla(turnoGuardado ? 'panel' : rolGuardado ? 'turno' : 'rol')
+      }}
+      onVolver={() => {
+        const rolGuardado = localStorage.getItem('posta_rol')
+        const turnoGuardado = localStorage.getItem('posta_turno_info')
+        if (turnoGuardado) setPantalla('panel')
+        else if (rolGuardado) setPantalla('turno')
+        else setPantalla('rol')
       }}
     />
   )
