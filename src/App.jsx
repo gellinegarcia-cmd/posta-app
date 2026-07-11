@@ -528,35 +528,9 @@ Total pacientes: ${pasados.length}
 ${sep}`
 }
 
-function PantallaEditorPDF({ textoPDF, setTextoPDF, onCancelar, onDescargar }) {
-  return (
-    <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ background: S.verdeCard, padding: '12px 16px', borderBottom: `0.5px solid ${S.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button onClick={onCancelar} style={{ background: 'none', border: 'none', color: S.muted, fontSize: 24, cursor: 'pointer', padding: 0, lineHeight: 1 }}>‹</button>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: S.verde }}>Revisar evolución</div>
-          <div style={{ fontSize: 11, color: S.muted }}>Editá antes de descargar</div>
-        </div>
-      </div>
-      <div style={{ flex: 1, padding: 16 }}>
-        <div style={{ fontSize: 11, color: S.muted, marginBottom: 8 }}>Podés corregir cualquier dato antes de descargar.</div>
-        <textarea
-          value={textoPDF}
-          onChange={e => setTextoPDF(e.target.value)}
-          style={{ width: '100%', minHeight: 360, background: S.verdeCard, border: `0.5px solid rgba(82,183,136,0.2)`, borderRadius: 10, padding: 12, fontSize: 12, color: S.text, outline: 'none', lineHeight: 1.7, resize: 'vertical', fontFamily: 'monospace' }}
-        />
-      </div>
-      <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}`, display: 'flex', gap: 8 }}>
-        <button onClick={onCancelar} style={{ flex: 1, background: 'transparent', color: S.muted, border: `0.5px solid ${S.border}`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
-        <button onClick={onDescargar} style={{ flex: 2, background: S.verdeOsc, color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 11, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
-          Descargar PDF →
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVolver, onSiguiente, onAbrirPDF }) {
+function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVolver, onSiguiente }) {
+  const [editandoPDF, setEditandoPDF] = useState(false)
+  const [textoPDF, setTextoPDF] = useState('')
   const [tab, setTab] = useState('evolucion')
   const [mensajes, setMensajes] = useState(() => {
     try {
@@ -613,6 +587,61 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVo
     navigator.clipboard.writeText(textoHC || evolucion)
     setCopiado(true)
     setTimeout(() => setCopiado(false), 2000)
+  }
+
+  function abrirEditorPDF() {
+    try {
+      const texto = generarTextoPDFIndividual(
+        paciente,
+        turnoInfo || { institucion: '', servicio: '', turno: '' },
+        medico || { nombre: '', especialidad: '', matriculaProv: '', matriculaNac: '' }
+      )
+      setTextoPDF(texto)
+      setEditandoPDF(true)
+    } catch(e) {
+      alert('Error al generar PDF: ' + e.message)
+    }
+  }
+
+  function descargarPDF() {
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+    const margen = 15
+    const anchoUtil = 180
+    let y = 20
+
+    const addLinea = (texto, size = 10, bold = false) => {
+      doc.setFontSize(size)
+      doc.setFont('helvetica', bold ? 'bold' : 'normal')
+      const lineas = doc.splitTextToSize(texto, anchoUtil)
+      lineas.forEach(l => {
+        if (y > 270) { doc.addPage(); y = 20 }
+        doc.text(l, margen, y)
+        y += size * 0.45
+      })
+    }
+
+    const addSep = () => {
+      doc.setDrawColor(180, 180, 180)
+      doc.line(margen, y, margen + anchoUtil, y)
+      y += 5
+    }
+
+    textoPDF.split('\n').forEach(linea => {
+      const trimmed = linea.trim()
+      if (trimmed.match(/^─+$/)) {
+        addSep()
+      } else if (trimmed === trimmed.toUpperCase() && trimmed.length > 3 && !trimmed.startsWith('•')) {
+        y += 2
+        addLinea(trimmed, 10, true)
+        y += 2
+      } else {
+        addLinea(linea, 9, false)
+      }
+    })
+
+    const nombreArchivo = `POSTA_Cama${paciente.cama}_${paciente.nombre.replace(/,\s*/g,'_')}_${fechaHoy().replace(/\//g,'-')}.pdf`
+    doc.save(nombreArchivo)
+    setEditandoPDF(false)
   }
 
   async function enviarChat(texto) {
@@ -691,6 +720,32 @@ Respondé siempre en el contexto de este paciente específico. Sé preciso y cer
   ]
 
   return (
+    <>
+      {editandoPDF && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ background: S.verdeCard, padding: '12px 16px', borderBottom: `0.5px solid ${S.border}`, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <button onClick={() => setEditandoPDF(false)} style={{ background: 'none', border: 'none', color: S.muted, fontSize: 24, cursor: 'pointer', padding: 0, lineHeight: 1 }}>‹</button>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: S.verde }}>Revisar evolución</div>
+              <div style={{ fontSize: 11, color: S.muted }}>Editá antes de descargar</div>
+            </div>
+          </div>
+          <div style={{ flex: 1, padding: 16, overflowY: 'auto', background: S.bg }}>
+            <div style={{ fontSize: 11, color: S.muted, marginBottom: 8 }}>Podés corregir cualquier dato antes de descargar.</div>
+            <textarea
+              value={textoPDF}
+              onChange={e => setTextoPDF(e.target.value)}
+              style={{ width: '100%', minHeight: 400, background: S.verdeCard, border: `0.5px solid rgba(82,183,136,0.2)`, borderRadius: 10, padding: 12, fontSize: 12, color: S.text, outline: 'none', lineHeight: 1.7, resize: 'vertical', fontFamily: 'monospace' }}
+            />
+          </div>
+          <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}`, display: 'flex', gap: 8, background: S.bg, flexShrink: 0 }}>
+            <button onClick={() => setEditandoPDF(false)} style={{ flex: 1, background: 'transparent', color: S.muted, border: `0.5px solid ${S.border}`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+            <button onClick={descargarPDF} style={{ flex: 2, background: S.verdeOsc, color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 11, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+              Descargar PDF →
+            </button>
+          </div>
+        </div>
+      )}
     <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column' }}>
       <div style={{ background: S.verdeCard, padding: '12px 16px', borderBottom: `0.5px solid ${S.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
         <button onClick={onVolver} style={{ background: 'none', border: 'none', color: S.muted, fontSize: 24, cursor: 'pointer', padding: 0, lineHeight: 1 }}>‹</button>
@@ -769,7 +824,7 @@ Respondé siempre en el contexto de este paciente específico. Sé preciso y cer
               </div>
             </button>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={onAbrirPDF} style={{ flex: 1, background: 'transparent', color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer' }}>
+              <button onClick={abrirEditorPDF} style={{ flex: 1, background: 'transparent', color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer' }}>
                 Descargar PDF
               </button>
               <button onClick={onSiguiente} style={{ flex: 2, background: S.verdeOsc, color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 11, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
@@ -804,7 +859,7 @@ Respondé siempre en el contexto de este paciente específico. Sé preciso y cer
                   {medico.nombre} · {medico.especialidad} · Mat. Prov. {medico.matriculaProv}
                 </div>
               </div>
-              <button onClick={onAbrirPDF} style={{ width: '100%', background: S.verdeOsc, color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 12, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+              <button onClick={abrirEditorPDF} style={{ width: '100%', background: S.verdeOsc, color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 12, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
                 Revisar y descargar PDF →
               </button>
             </>
@@ -848,6 +903,7 @@ Respondé siempre en el contexto de este paciente específico. Sé preciso y cer
         </>
       )}
     </div>
+    </>
   )
 }
 
@@ -872,8 +928,6 @@ export default function App() {
   })
   const [showModal, setShowModal] = useState(false)
   const [turnoId] = useState(generarTurnoId)
-  const [editandoPDF, setEditandoPDF] = useState(false)
-  const [textoPDF, setTextoPDF] = useState('')
 
   useEffect(() => {
     const medicoGuardado = localStorage.getItem('posta_medico')
@@ -921,61 +975,6 @@ export default function App() {
     setPacientes(prev => prev.map(p => p.id === pacienteConEvolucion.id ? pacienteConEvolucion : p))
     setPacienteActual(pacienteConEvolucion)
     setPantalla('ficha')
-  }
-
-  function abrirEditorPDF(paciente) {
-    try {
-      const texto = generarTextoPDFIndividual(
-        paciente,
-        turnoInfo || { institucion: '', servicio: '', turno: '' },
-        medico || { nombre: '', especialidad: '', matriculaProv: '', matriculaNac: '' }
-      )
-      setTextoPDF(texto)
-      setEditandoPDF(true)
-    } catch(e) {
-      alert('Error al generar PDF: ' + e.message)
-    }
-  }
-
-  function descargarPDFIndividual(paciente) {
-    const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-    const margen = 15
-    const anchoUtil = 180
-    let y = 20
-
-    const addLinea = (texto, size = 10, bold = false) => {
-      doc.setFontSize(size)
-      doc.setFont('helvetica', bold ? 'bold' : 'normal')
-      const lineas = doc.splitTextToSize(texto, anchoUtil)
-      lineas.forEach(l => {
-        if (y > 270) { doc.addPage(); y = 20 }
-        doc.text(l, margen, y)
-        y += size * 0.45
-      })
-    }
-
-    const addSep = () => {
-      doc.setDrawColor(180, 180, 180)
-      doc.line(margen, y, margen + anchoUtil, y)
-      y += 5
-    }
-
-    textoPDF.split('\n').forEach(linea => {
-      const trimmed = linea.trim()
-      if (trimmed.match(/^─+$/)) {
-        addSep()
-      } else if (trimmed === trimmed.toUpperCase() && trimmed.length > 3 && !trimmed.startsWith('•')) {
-        y += 2
-        addLinea(trimmed, 10, true)
-        y += 2
-      } else {
-        addLinea(linea, 9, false)
-      }
-    })
-
-    const nombreArchivo = `POSTA_Cama${paciente.cama}_${paciente.nombre.replace(/,\s*/g, '_')}_${fechaHoy().replace(/\//g, '-')}.pdf`
-    doc.save(nombreArchivo)
-    setEditandoPDF(false)
   }
 
   function eliminarPaciente(id) {
@@ -1038,20 +1037,8 @@ export default function App() {
       medico={medico}
       onVolver={() => setPantalla('panel')}
       onSiguiente={() => { setPacienteActual(null); setShowModal(true); setPantalla('panel') }}
-      onAbrirPDF={() => abrirEditorPDF(pacienteActual)}
     />
   )
-
-  if (editandoPDF) {
-    return (
-      <PantallaEditorPDF
-        textoPDF={textoPDF}
-        setTextoPDF={setTextoPDF}
-        onCancelar={() => setEditandoPDF(false)}
-        onDescargar={() => descargarPDFIndividual(pacienteActual)}
-      />
-    )
-  }
 
   return (
     <>
