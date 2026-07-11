@@ -591,12 +591,16 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVo
 
   function abrirEditorPDF() {
     try {
-      if (!paciente.evolucion) {
-        alert('Primero grabá el pase para generar la evolución de este paciente.')
-        return
-      }
-      const texto = generarTextoPDFIndividual(paciente, turnoInfo, medico)
-      setTextoPDF(texto)
+      console.log('paciente.evolucion:', paciente.evolucion)
+      console.log('turnoInfo:', turnoInfo)
+      console.log('medico:', medico)
+
+      const texto = generarTextoPDFIndividual(
+        paciente,
+        turnoInfo || { institucion: 'Sin institución', servicio: 'Sin servicio', turno: 'Sin turno' },
+        medico || { nombre: '', especialidad: '', matriculaProv: '', matriculaNac: '' }
+      )
+      setTextoPDF(texto || 'Sin contenido disponible')
       setEditandoPDF(true)
     } catch(e) {
       console.error('Error generando PDF:', e)
