@@ -570,10 +570,14 @@ ${sep}`
 }
 
 function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVolver, onSiguiente, onActualizarPaciente }) {
+  const turnoIdHoy = `${paciente.id}_${new Date().toLocaleDateString('es-AR').replace(/\//g,'-')}`
+  const claveEvolucionHoy = `posta_evolucion_${turnoIdHoy}`
   const [editandoPDF, setEditandoPDF] = useState(false)
   const [textoPDF, setTextoPDF] = useState('')
   const [tab, setTab] = useState('evolucion')
   const [evolucionHoy, setEvolucionHoy] = useState(paciente.evolucion || null)
+  const [inputTexto, setInputTexto] = useState('')
+  const [actualizando, setActualizando] = useState(false)
   const [mensajes, setMensajes] = useState(() => {
     try {
       const guardados = localStorage.getItem(`posta_chat_${paciente.id}`)
@@ -623,6 +627,36 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVo
       .then(data => { if (data?.contexto) setContextoCompleto(data.contexto + '\n\nEVOLUCIÓN:\n' + (paciente.evolucion || '')) })
       .catch(() => {})
   }, [])
+
+  async function actualizarEvolucion(nuevoContexto) {
+    if (!nuevoContexto.trim()) return
+    setActualizando(true)
+    try {
+      const contextoCompleto = `${evolucionHoy ? `EVOLUCIÓN PREVIA DEL DÍA:\n${evolucionHoy}\n\n` : ''}NUEVA INFORMACIÓN:\n${nuevoContexto}`
+
+      const res = await fetch(`${API}/posta/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pregunta: `Actualizá la evolución del día de este paciente integrando la nueva información. Generá una evolución completa y actualizada en el mismo formato estructurado (### Situación actual, ### Evolución del día, etc.). No dupliques información, integrá todo coherentemente.`,
+          contexto_paciente: `Paciente: ${paciente.nombre}, ${paciente.edad} años, Cama ${paciente.cama}. Diagnóstico: ${paciente.dx}.\n\n${contextoCompleto}`,
+          historial: [],
+        })
+      })
+      const data = await res.json()
+      if (data.respuesta) {
+        const nuevaEvolucion = data.respuesta
+        setEvolucionHoy(nuevaEvolucion)
+        localStorage.setItem(claveEvolucionHoy, nuevaEvolucion)
+        const pacienteActualizado = { ...paciente, evolucion: nuevaEvolucion, estado: 'pasado' }
+        onActualizarPaciente(pacienteActualizado)
+        localStorage.setItem('posta_paciente_actual', JSON.stringify(pacienteActualizado))
+      }
+    } catch(e) {
+      alert('Error al actualizar: ' + e.message)
+    }
+    setActualizando(false)
+  }
 
   function abrirEditorPDF() {
     try {
@@ -834,6 +868,13 @@ Respondé siempre en el contexto de este paciente específico. Sé preciso y cer
           </div>
 
           <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+
+            {actualizando && (
+              <div style={{ textAlign: 'center', padding: '8px 0', fontSize: 12, color: S.muted, fontStyle: 'italic' }}>
+                Actualizando evolución...
+              </div>
+            )}
+
             <button
               onClick={grabandoPase ? async () => {
                 if (!mediaPaseRef.current) return
@@ -841,47 +882,23 @@ Respondé siempre en el contexto de este paciente específico. Sé preciso y cer
                 mediaPaseRef.current.stream.getTracks().forEach(t => t.stop())
                 setGrabandoPase(false)
                 await new Promise(r => setTimeout(r, 800))
-
                 const mimeType = chunksPaseRef.current[0]?.type || 'audio/webm'
                 const blob = new Blob(chunksPaseRef.current, { type: mimeType })
                 if (blob.size < 500) return
-
                 const fd = new FormData()
                 fd.append('audio', blob, mimeType.includes('mp4') ? 'pase.mp4' : 'pase.webm')
-                fd.append('turno_id', turnoId)
+                fd.append('turno_id', turnoIdHoy)
                 fd.append('cama', paciente.cama)
                 fd.append('nombre', paciente.nombre)
                 fd.append('dni', paciente.dni || '')
                 fd.append('edad', paciente.edad || '')
                 fd.append('dx', paciente.dx || '')
                 fd.append('rol', rol)
-
                 try {
                   const resAudio = await fetch(`${API}/posta/audio`, { method: 'POST', body: fd })
-                  if (!resAudio.ok) throw new Error('Error subiendo audio')
-
-                  const resAnalisis = await fetch(`${API}/posta/analizar`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      turno_id: turnoId,
-                      cama: paciente.cama,
-                      nombre: paciente.nombre,
-                      edad: paciente.edad,
-                      dx: paciente.dx,
-                      rol
-                    })
-                  })
-                  const data = await resAnalisis.json()
-                  if (data.evolucion) {
-                    setEvolucionHoy(data.evolucion)
-                    const pacienteActualizado = { ...paciente, evolucion: data.evolucion, estado: 'pasado' }
-                    onActualizarPaciente(pacienteActualizado)
-                    localStorage.setItem('posta_paciente_actual', JSON.stringify(pacienteActualizado))
-                  }
-                } catch(e) {
-                  alert('Error al procesar: ' + e.message)
-                }
+                  const audioData = await resAudio.json()
+                  if (audioData.transcripcion) await actualizarEvolucion(audioData.transcripcion)
+                } catch(e) { alert('Error: ' + e.message) }
               } : async () => {
                 try {
                   const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -892,36 +909,47 @@ Respondé siempre en el contexto de este paciente específico. Sé preciso y cer
                   mr.start(500)
                   mediaPaseRef.current = mr
                   setGrabandoPase(true)
-                } catch (e) { alert('Error micrófono: ' + e.message) }
+                } catch(e) { alert('Error micrófono: ' + e.message) }
               }}
               style={{ width: '100%', background: grabandoPase ? 'rgba(239,68,68,0.06)' : S.verdeCard, border: `0.5px solid ${grabandoPase ? 'rgba(239,68,68,0.4)' : 'rgba(82,183,136,0.2)'}`, borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
               <div style={{ width: 40, height: 40, borderRadius: '50%', background: grabandoPase ? 'rgba(239,68,68,0.15)' : 'rgba(82,183,136,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>🎙</div>
               <div style={{ textAlign: 'left' }}>
-                <div style={{ fontSize: 13, fontWeight: 500, color: grabandoPase ? S.rojo : S.text }}>{grabandoPase ? 'Grabando... tocá para detener' : 'Te escucho, hagamos esta guardia más ligera'}</div>
-                <div style={{ fontSize: 11, color: S.muted, marginTop: 2 }}>{grabandoPase ? 'Hablá con normalidad' : 'Tocá para agregar al pase'}</div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: grabandoPase ? S.rojo : S.text }}>
+                  {grabandoPase ? 'Grabando... tocá para procesar' : 'Te escucho, hagamos esta guardia más ligera'}
+                </div>
+                <div style={{ fontSize: 11, color: S.muted, marginTop: 2 }}>
+                  {grabandoPase ? 'Hablá con normalidad' : 'Tocá para actualizar por audio'}
+                </div>
               </div>
             </button>
-            {evolucionHoy && (
-              <button
-                onClick={async () => {
-                  if (!window.confirm('¿Cerrás la evolución de hoy de este paciente? Pasará a la historia clínica.')) return
-                  const pacienteActualizado = { ...paciente, evolucion: evolucionHoy, estado: 'pasado' }
-                  onActualizarPaciente(pacienteActualizado)
-                  localStorage.setItem('posta_paciente_actual', JSON.stringify(pacienteActualizado))
-                  setEvolucionHoy(null)
-                }}
-                style={{ width: '100%', background: 'transparent', color: S.muted, border: `0.5px solid ${S.border}`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer', marginTop: 8 }}>
-                Cerrar evolución de hoy
-              </button>
-            )}
+
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={abrirEditorPDF} style={{ flex: 1, background: 'transparent', color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer' }}>
-                Descargar PDF
+              <input
+                value={inputTexto}
+                onChange={e => setInputTexto(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && inputTexto.trim() && actualizarEvolucion(inputTexto).then(() => setInputTexto(''))}
+                placeholder="O escribí nueva información aquí..."
+                style={{ flex: 1, background: S.verdeCard, border: `0.5px solid ${S.border}`, borderRadius: 8, padding: '9px 12px', fontSize: 13, color: S.text, outline: 'none' }}
+              />
+              <button
+                onClick={() => { if (inputTexto.trim()) actualizarEvolucion(inputTexto).then(() => setInputTexto('')) }}
+                disabled={!inputTexto.trim() || actualizando}
+                style={{ width: 36, height: 36, borderRadius: '50%', background: S.verdeOsc, border: 'none', color: S.verde, cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>
+                ↑
               </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              {evolucionHoy && (
+                <button onClick={abrirEditorPDF} style={{ flex: 1, background: 'transparent', color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer' }}>
+                  Descargar PDF
+                </button>
+              )}
               <button onClick={onSiguiente} style={{ flex: 2, background: S.verdeOsc, color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 11, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
                 + Siguiente paciente
               </button>
             </div>
+
           </div>
         </>
       )}
