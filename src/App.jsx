@@ -182,7 +182,7 @@ function ModalPaciente({ onGuardar, onCerrar }) {
   )
 }
 
-function PanelCamas({ rol, turnoInfo, medico, pacientes, onPaciente, onAgregar, onEliminar, onPdfTurno }) {
+function PanelCamas({ rol, turnoInfo, medico, pacientes, onPaciente, onAgregar, onEliminar, onPdfTurno, onFinalizarTurno }) {
   const [swipedId, setSwipedId] = useState(null)
   const touchStartX = useRef(0)
   const pasados = pacientes.filter(p => p.estado === 'pasado').length
@@ -268,7 +268,7 @@ function PanelCamas({ rol, turnoInfo, medico, pacientes, onPaciente, onAgregar, 
             Descargar PDF del turno ({pasados} pacientes)
           </button>
         )}
-        <button style={{ width: '100%', background: 'transparent', color: S.muted, border: `0.5px solid ${S.border}`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer' }}>
+        <button onClick={onFinalizarTurno} style={{ width: '100%', background: 'transparent', color: S.muted, border: `0.5px solid ${S.border}`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer' }}>
           Finalizar turno
         </button>
       </div>
@@ -908,7 +908,9 @@ Respondé siempre en el contexto de este paciente específico. Sé preciso y cer
 }
 
 export default function App() {
-  const [rol, setRol] = useState(null)
+  const [rol, setRol] = useState(() => {
+    return localStorage.getItem('posta_rol') || null
+  })
   const [medico, setMedico] = useState(null)
   const [pacientes, setPacientes] = useState(() => {
     try { return JSON.parse(localStorage.getItem('posta_pacientes') || '[]') } catch { return [] }
@@ -920,10 +922,12 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem('posta_paciente_actual') || 'null') } catch { return null }
   })
   const [pantalla, setPantalla] = useState(() => {
-    const turnoGuardado = localStorage.getItem('posta_turno_info')
     const medicoGuardado = localStorage.getItem('posta_medico')
+    const turnoGuardado = localStorage.getItem('posta_turno_info')
+    const rolGuardado = localStorage.getItem('posta_rol')
     if (!medicoGuardado) return 'registro'
-    if (!turnoGuardado) return 'rol'
+    if (!rolGuardado) return 'rol'
+    if (!turnoGuardado) return 'turno'
     return 'panel'
   })
   const [showModal, setShowModal] = useState(false)
@@ -981,6 +985,18 @@ export default function App() {
     setPacientes(prev => prev.filter(p => p.id !== id))
   }
 
+  function finalizarTurno() {
+    localStorage.removeItem('posta_turno_info')
+    localStorage.removeItem('posta_pacientes')
+    localStorage.removeItem('posta_paciente_actual')
+    localStorage.removeItem('posta_rol')
+    setRol(null)
+    setTurnoInfo(null)
+    setPacientes([])
+    setPacienteActual(null)
+    setPantalla('rol')
+  }
+
   function generarPdfTurno() {
     const pasados = pacientes.filter(p => p.estado === 'pasado' && p.evolucion)
     if (pasados.length === 0) { alert('No hay evoluciones generadas todavía.'); return }
@@ -1025,7 +1041,7 @@ export default function App() {
   }
 
   if (!medico && pantalla === 'registro') return <PantallaRegistro onGuardar={guardarMedico} />
-  if (!rol) return <PantallaRol onSelect={r => { setRol(r); setPantalla('turno') }} />
+  if (!rol) return <PantallaRol onSelect={r => { setRol(r); localStorage.setItem('posta_rol', r); setPantalla('turno') }} />
   if (pantalla === 'turno') return <PantallaInicioTurno medico={medico} onComenzar={info => { setTurnoInfo(info); localStorage.setItem('posta_turno_info', JSON.stringify(info)); setPantalla('panel') }} />
   if (pantalla === 'pase' && pacienteActual) return <PantallaPase paciente={pacienteActual} rol={rol} turnoId={turnoId} onFinalizar={finalizarPase} onCancelar={() => setPantalla('panel')} />
   if (pantalla === 'ficha' && pacienteActual) return (
@@ -1051,6 +1067,7 @@ export default function App() {
         onAgregar={() => setShowModal(true)}
         onEliminar={eliminarPaciente}
         onPdfTurno={generarPdfTurno}
+        onFinalizarTurno={finalizarTurno}
       />
       {showModal && <ModalPaciente onGuardar={agregarPaciente} onCerrar={() => setShowModal(false)} />}
     </>
