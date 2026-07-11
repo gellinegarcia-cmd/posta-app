@@ -23,8 +23,15 @@ const ROLES = [
   { id: 'kinesiologia', label: 'Kinesiología', sub: 'Evolución funcional' },
 ]
 
+const SERVICIOS = ['UCI / UTI', 'Guardia general', 'Demanda espontánea', 'Pediatría', 'Neonatología', 'Clínica médica', 'Cirugía', 'Otro']
+const TURNOS = ['Mañana', 'Tarde', 'Noche', '24 hs']
+
 function generarTurnoId() {
   return 'T' + Date.now().toString(36).toUpperCase()
+}
+
+function fechaHoy() {
+  return new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 function PantallaRol({ onSelect }) {
@@ -45,15 +52,100 @@ function PantallaRol({ onSelect }) {
   )
 }
 
+function PantallaRegistro({ onGuardar }) {
+  const [form, setForm] = useState({ nombre: '', matriculaProv: '', matriculaNac: '', especialidad: '', institucionDefault: '' })
+  const upd = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const campos = [
+    ['nombre', 'Nombre completo', 'Dr. García, Juan Carlos'],
+    ['matriculaProv', 'Matrícula provincial', 'Ej: 28.450'],
+    ['matriculaNac', 'Matrícula nacional', 'Ej: 156.230 (opcional)'],
+    ['especialidad', 'Especialidad', 'Médico Intensivista'],
+    ['institucionDefault', 'Institución habitual', 'Hospital / Clínica'],
+  ]
+  return (
+    <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ background: S.verdeCard, padding: '14px 16px', borderBottom: `0.5px solid ${S.border}`, textAlign: 'center' }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: S.verde, letterSpacing: '0.08em' }}>POSTA</div>
+        <div style={{ fontSize: 11, color: S.muted, marginTop: 2 }}>Tus datos aparecerán al pie de cada evolución</div>
+      </div>
+      <div style={{ flex: 1, padding: 16 }}>
+        {campos.map(([k, l, p]) => (
+          <div key={k} style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 11, color: S.muted, display: 'block', marginBottom: 5 }}>{l}</label>
+            <input value={form[k]} onChange={e => upd(k, e.target.value)} placeholder={p}
+              style={{ width: '100%', background: S.verdeCard, border: `0.5px solid rgba(82,183,136,0.2)`, borderRadius: 8, padding: '10px 12px', fontSize: 14, color: S.text, outline: 'none' }} />
+          </div>
+        ))}
+      </div>
+      <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}` }}>
+        <button onClick={() => form.nombre && onGuardar(form)} style={{ width: '100%', background: S.verdeOsc, color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 13, fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
+          Guardar y entrar a guardia →
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function PantallaInicioTurno({ medico, onComenzar }) {
+  const [institucion, setInstitucion] = useState(medico.institucionDefault || '')
+  const [servicio, setServicio] = useState('UCI / UTI')
+  const [turno, setTurno] = useState('Mañana')
+  const selectStyle = { width: '100%', background: S.verdeCard, border: `0.5px solid rgba(82,183,136,0.2)`, borderRadius: 8, padding: '10px 12px', fontSize: 14, color: S.text, outline: 'none', cursor: 'pointer' }
+  return (
+    <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ background: S.verdeCard, padding: '14px 16px', borderBottom: `0.5px solid ${S.border}` }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: S.verde, letterSpacing: '0.08em' }}>POSTA</div>
+        <div style={{ fontSize: 11, color: S.muted, marginTop: 2 }}>¿Dónde estás hoy?</div>
+      </div>
+      <div style={{ flex: 1, padding: 16 }}>
+        <div style={{ fontSize: 13, color: S.muted, marginBottom: 20, lineHeight: 1.6 }}>
+          Estos datos van en el encabezado de todas las evoluciones de este turno.
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 11, color: S.muted, display: 'block', marginBottom: 5 }}>Institución</label>
+          <input value={institucion} onChange={e => setInstitucion(e.target.value)} placeholder="UPA 5 Longchamps"
+            style={{ width: '100%', background: S.verdeCard, border: `0.5px solid rgba(82,183,136,0.2)`, borderRadius: 8, padding: '10px 12px', fontSize: 14, color: S.text, outline: 'none' }} />
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 11, color: S.muted, display: 'block', marginBottom: 5 }}>Servicio</label>
+          <select value={servicio} onChange={e => setServicio(e.target.value)} style={selectStyle}>
+            {SERVICIOS.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 11, color: S.muted, display: 'block', marginBottom: 5 }}>Turno</label>
+          <select value={turno} onChange={e => setTurno(e.target.value)} style={selectStyle}>
+            {TURNOS.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        <div style={{ background: S.verdeCard, border: `0.5px solid ${S.border}`, borderRadius: 10, padding: '10px 13px', marginTop: 8 }}>
+          <div style={{ fontSize: 10, color: S.muted, marginBottom: 4, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Encabezado del PDF</div>
+          <div style={{ fontSize: 12, color: S.text, lineHeight: 1.7 }}>
+            {institucion || 'Institución'} · {servicio}<br />
+            {fechaHoy()} · Turno {turno}<br />
+            <span style={{ color: S.muted }}>{medico.nombre || 'Dr.'} · {medico.especialidad || ''} · Mat. Prov. {medico.matriculaProv || '-'}</span>
+          </div>
+        </div>
+      </div>
+      <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}` }}>
+        <button onClick={() => onComenzar({ institucion: institucion || medico.institucionDefault, servicio, turno })}
+          style={{ width: '100%', background: S.verdeOsc, color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 13, fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
+          Comenzar guardia →
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function ModalPaciente({ onGuardar, onCerrar }) {
   const [form, setForm] = useState({ cama: '', nombre: '', dni: '', edad: '', dx: '' })
   const upd = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const campos = [
     ['cama', 'Cama', 'Ej: 8'],
-    ['nombre', 'Nombre completo', 'Apellido, Nombre'],
-    ['dni', 'DNI', '12.345.678'],
+    ['nombre', 'Apellido y nombre', 'Pérez, Juan Carlos'],
+    ['dni', 'DNI', '18.432.901'],
     ['edad', 'Edad', '58'],
-    ['dx', 'Diagnóstico principal', 'Ej: Neumonía grave · ARM día 7'],
+    ['dx', 'Diagnóstico principal', 'Neumonía grave · ARM día 7'],
   ]
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 50 }} onClick={e => e.target === e.currentTarget && onCerrar()}>
@@ -79,10 +171,103 @@ function ModalPaciente({ onGuardar, onCerrar }) {
   )
 }
 
+function PanelCamas({ rol, turnoInfo, medico, pacientes, onPaciente, onAgregar, onEliminar, onPdfTurno }) {
+  const [swipedId, setSwipedId] = useState(null)
+  const touchStartX = useRef(0)
+  const pasados = pacientes.filter(p => p.estado === 'pasado').length
+  const pendientes = pacientes.filter(p => p.estado !== 'pasado').length
+  const alertas = pacientes.filter(p => p.alerta).length
+  const ordenados = [
+    ...pacientes.filter(p => p.alerta),
+    ...pacientes.filter(p => !p.alerta && p.estado !== 'pasado'),
+    ...pacientes.filter(p => p.estado === 'pasado'),
+  ]
+
+  function handleTouchStart(e) { touchStartX.current = e.touches[0].clientX }
+  function handleTouchEnd(e, id) {
+    const dx = touchStartX.current - e.changedTouches[0].clientX
+    if (dx > 40) setSwipedId(id)
+    else if (dx < -20) setSwipedId(null)
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ background: S.verdeCard, padding: '14px 16px', borderBottom: `0.5px solid ${S.border}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: S.verde, letterSpacing: '0.08em' }}>POSTA</div>
+          <div style={{ fontSize: 11, color: S.verde, background: 'rgba(82,183,136,0.12)', padding: '3px 10px', borderRadius: 99, border: `0.5px solid rgba(82,183,136,0.2)`, textTransform: 'capitalize' }}>{rol}</div>
+        </div>
+        <div style={{ fontSize: 11, color: S.muted }}>{turnoInfo.institucion} · {turnoInfo.servicio} · Turno {turnoInfo.turno}</div>
+        <div style={{ display: 'flex', gap: 14, marginTop: 6 }}>
+          <span style={{ fontSize: 11, color: S.muted }}>Total <strong style={{ color: S.verde }}>{pacientes.length}</strong></span>
+          <span style={{ fontSize: 11, color: S.muted }}>Pasados <strong style={{ color: S.verde }}>{pasados}</strong></span>
+          <span style={{ fontSize: 11, color: S.muted }}>Pendientes <strong style={{ color: S.verde }}>{pendientes}</strong></span>
+          {alertas > 0 && <span style={{ fontSize: 11, color: S.muted }}>Alertas <strong style={{ color: S.amber }}>{alertas}</strong></span>}
+        </div>
+      </div>
+
+      <div style={{ flex: 1, padding: '14px 16px', overflowY: 'auto' }}>
+        <div style={{ fontSize: 10, fontWeight: 500, color: S.muted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>Mis pacientes · deslizá para eliminar</div>
+
+        {ordenados.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: S.muted, fontSize: 13 }}>
+            No hay pacientes todavía.<br />Tocá + para agregar el primero.
+          </div>
+        )}
+
+        {ordenados.map(p => (
+          <div key={p.id} style={{ position: 'relative', marginBottom: 8, borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 72, background: 'rgba(239,68,68,0.15)', border: `0.5px solid rgba(239,68,68,0.3)`, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+              onClick={() => { if (window.confirm(`¿Eliminás a ${p.nombre} del turno?`)) { onEliminar(p.id); setSwipedId(null) } }}>
+              <span style={{ fontSize: 20, color: S.rojo }}>🗑</span>
+            </div>
+            <button
+              onTouchStart={handleTouchStart}
+              onTouchEnd={e => handleTouchEnd(e, p.id)}
+              onClick={() => { if (swipedId === p.id) { setSwipedId(null); return } onPaciente(p) }}
+              style={{ background: p.alerta ? S.amberBg : S.verdeCard, border: `0.5px solid ${p.alerta ? S.amberBorder : p.estado === 'pasado' ? 'rgba(82,183,136,0.2)' : S.border}`, borderRadius: 10, padding: '11px 13px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', opacity: p.estado === 'pasado' ? 0.7 : 1, textAlign: 'left', width: '100%', position: 'relative', transition: 'transform 0.2s ease', transform: swipedId === p.id ? 'translateX(-72px)' : 'translateX(0)' }}>
+              <div style={{ width: 36, height: 36, borderRadius: 8, background: p.alerta ? 'rgba(186,117,23,0.15)' : p.estado === 'pasado' ? 'rgba(82,183,136,0.06)' : 'rgba(82,183,136,0.12)', color: p.alerta ? S.amber : S.verde, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, flexShrink: 0 }}>
+                {p.cama}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: S.text, marginBottom: 2 }}>{p.nombre}</div>
+                <div style={{ fontSize: 11, color: S.muted }}>{p.dx}</div>
+              </div>
+              <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 99, background: p.alerta ? 'rgba(186,117,23,0.1)' : p.estado === 'pasado' ? 'rgba(82,183,136,0.1)' : 'rgba(82,183,136,0.06)', color: p.alerta ? S.amber : p.estado === 'pasado' ? '#40916C' : S.muted, flexShrink: 0 }}>
+                {p.alerta ? '⚠ Alerta' : p.estado === 'pasado' ? '✓ Pasado' : 'Pendiente'}
+              </span>
+            </button>
+          </div>
+        ))}
+
+        <div style={{ height: '0.5px', background: 'rgba(82,183,136,0.1)', margin: '12px 0' }} />
+
+        <button onClick={onAgregar} style={{ width: '100%', background: 'rgba(82,183,136,0.04)', border: '0.5px dashed rgba(82,183,136,0.15)', borderRadius: 10, padding: '10px 13px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+          <div style={{ width: 28, height: 28, borderRadius: 6, background: 'rgba(82,183,136,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: S.verde, fontSize: 18 }}>+</div>
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ fontSize: 12, color: S.verde }}>Agregar paciente</div>
+            <div style={{ fontSize: 11, color: '#4a7c5f' }}>Nuevo ingreso o transferencia</div>
+          </div>
+        </button>
+      </div>
+
+      <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {pasados > 0 && (
+          <button onClick={onPdfTurno} style={{ width: '100%', background: S.verdeOsc, color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 13, fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
+            Descargar PDF del turno ({pasados} pacientes)
+          </button>
+        )}
+        <button style={{ width: '100%', background: 'transparent', color: S.muted, border: `0.5px solid ${S.border}`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer' }}>
+          Finalizar turno
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function PantallaPase({ paciente, rol, turnoId, onFinalizar, onCancelar }) {
   const [grabando, setGrabando] = useState(false)
   const [pausado, setPausado] = useState(false)
-  const [startTime, setStartTime] = useState(null)
   const [segundos, setSegundos] = useState(0)
   const [procesando, setProcesando] = useState(false)
   const [error, setError] = useState(null)
@@ -92,46 +277,23 @@ function PantallaPase({ paciente, rol, turnoId, onFinalizar, onCancelar }) {
 
   const iniciarGrabacion = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true }
-      })
-
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/webm')
-          ? 'audio/webm'
-          : 'audio/mp4'
-
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
       const mr = new MediaRecorder(stream, mimeType ? { mimeType } : {})
       chunksRef.current = []
-
-      mr.ondataavailable = e => {
-        if (e.data.size > 0) chunksRef.current.push(e.data)
-      }
-
+      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
       mr.onstart = () => {
         setGrabando(true)
         setError(null)
-        const inicio = Date.now()
-        setStartTime(inicio)
-        timerRef.current = setInterval(() => {
-          setSegundos(Math.floor((Date.now() - inicio) / 1000))
-        }, 500)
+        let count = 0
+        timerRef.current = setInterval(() => { count++; setSegundos(count) }, 1000)
       }
-
-      mr.onerror = e => {
-        setError('Error en la grabación: ' + e.message)
-      }
-
+      mr.onerror = e => setError('Error en la grabación: ' + e.message)
       mediaRef.current = mr
       mr.start(500)
-
     } catch (e) {
-      if (e.name === 'NotAllowedError') {
-        setError('Permiso de micrófono denegado.')
-      } else {
-        setError('Error al iniciar: ' + e.message)
-      }
+      setError(e.name === 'NotAllowedError' ? 'Permiso de micrófono denegado.' : 'Error al iniciar: ' + e.message)
     }
   }, [])
 
@@ -139,35 +301,25 @@ function PantallaPase({ paciente, rol, turnoId, onFinalizar, onCancelar }) {
     if (!mediaRef.current) return
     if (pausado) {
       mediaRef.current.resume()
-      timerRef.current = setInterval(() => setSegundos(s => s + 1), 1000)
+      let count = segundos
+      timerRef.current = setInterval(() => { count++; setSegundos(count) }, 1000)
     } else {
       mediaRef.current.pause()
       clearInterval(timerRef.current)
     }
     setPausado(p => !p)
-  }, [pausado])
+  }, [pausado, segundos])
 
   const finalizarYAnalizar = useCallback(async () => {
-    if (!mediaRef.current) {
-      console.error('mediaRef.current es null')
-      setError('No hay grabación activa.')
-      return
-    }
+    if (!mediaRef.current) { setError('No hay grabación activa.'); return }
     clearInterval(timerRef.current)
     setProcesando(true)
-    console.log('Deteniendo MediaRecorder, estado:', mediaRef.current.state)
     mediaRef.current.stop()
     mediaRef.current.stream.getTracks().forEach(t => t.stop())
     await new Promise(r => setTimeout(r, 1000))
-    console.log('Chunks:', chunksRef.current.length, 'Total bytes:', chunksRef.current.reduce((a, c) => a + c.size, 0))
     const mimeType = chunksRef.current[0]?.type || 'audio/webm'
     const blob = new Blob(chunksRef.current, { type: mimeType })
-    console.log('Blob:', blob.size, 'bytes, tipo:', blob.type)
-    if (blob.size < 1000) {
-      setError('Audio muy corto. Grabá al menos 10 segundos.')
-      setProcesando(false)
-      return
-    }
+    if (blob.size < 1000) { setError('Audio muy corto. Grabá al menos 10 segundos.'); setProcesando(false); return }
     const ext = mimeType.includes('mp4') ? 'pase.mp4' : 'pase.webm'
     const formData = new FormData()
     formData.append('audio', blob, ext)
@@ -179,23 +331,18 @@ function PantallaPase({ paciente, rol, turnoId, onFinalizar, onCancelar }) {
     formData.append('dx', paciente.dx || '')
     formData.append('rol', rol)
     try {
-      console.log('Enviando a /posta/audio...')
       const resAudio = await fetch(`${API}/posta/audio`, { method: 'POST', body: formData })
       const audioData = await resAudio.json()
-      console.log('Audio response:', resAudio.status, audioData)
       if (!resAudio.ok) throw new Error(audioData.error || 'Error al subir audio')
-      console.log('Enviando a /posta/analizar...')
       const resAnalisis = await fetch(`${API}/posta/analizar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ turno_id: turnoId, cama: paciente.cama, nombre: paciente.nombre, edad: paciente.edad, dx: paciente.dx, rol })
       })
       const data = await resAnalisis.json()
-      console.log('Analisis response:', resAnalisis.status, data)
       if (!resAnalisis.ok) throw new Error(data.error || 'Error al analizar')
       onFinalizar({ ...paciente, evolucion: data.evolucion, estado: 'pasado' })
     } catch (e) {
-      console.error('Error:', e.message)
       setError('Error: ' + e.message)
       setProcesando(false)
     }
@@ -206,12 +353,13 @@ function PantallaPase({ paciente, rol, turnoId, onFinalizar, onCancelar }) {
 
   return (
     <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ background: S.verdeCard, padding: '14px 16px', borderBottom: `0.5px solid ${S.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: S.verde, letterSpacing: '0.08em' }}>POSTA</div>
-          <div style={{ fontSize: 10, color: S.muted }}>Cama {paciente.cama} · {paciente.nombre}</div>
+      <div style={{ background: S.verdeCard, padding: '12px 16px', borderBottom: `0.5px solid ${S.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button onClick={onCancelar} style={{ background: 'none', border: 'none', color: S.muted, fontSize: 24, cursor: 'pointer', padding: 0, lineHeight: 1 }}>‹</button>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: S.verde, letterSpacing: '0.06em' }}>POSTA</div>
+          <div style={{ fontSize: 11, color: S.muted }}>Cama {paciente.cama} · {paciente.nombre}</div>
         </div>
-        <button onClick={onCancelar} style={{ background: 'none', border: 'none', color: '#74A98A', fontSize: 24, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>‹</button>
+        {grabando && <div style={{ fontSize: 10, color: S.rojo, background: 'rgba(239,68,68,0.1)', padding: '3px 10px', borderRadius: 99 }}>● Grabando</div>}
       </div>
 
       {grabando && (
@@ -229,14 +377,14 @@ function PantallaPase({ paciente, rol, turnoId, onFinalizar, onCancelar }) {
         </div>
       )}
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, gap: 20 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 }}>
         <div style={{ background: S.verdeCard, border: `0.5px solid ${S.border}`, borderRadius: 12, padding: '14px 18px', width: '100%', maxWidth: 320 }}>
           <div style={{ fontSize: 11, color: S.muted, marginBottom: 3 }}>Cama {paciente.cama} · {paciente.edad} años</div>
           <div style={{ fontSize: 16, fontWeight: 500, color: S.text, marginBottom: 3 }}>{paciente.nombre}</div>
           <div style={{ fontSize: 12, color: S.verde }}>{paciente.dx}</div>
         </div>
 
-        {error && <div style={{ fontSize: 12, color: S.rojo, textAlign: 'center', padding: '8px 16px', background: 'rgba(239,68,68,0.1)', borderRadius: 8 }}>{error}</div>}
+        {error && <div style={{ fontSize: 12, color: S.rojo, textAlign: 'center', padding: '8px 16px', background: 'rgba(239,68,68,0.1)', borderRadius: 8, width: '100%' }}>{error}</div>}
 
         {procesando ? (
           <div style={{ textAlign: 'center' }}>
@@ -245,17 +393,15 @@ function PantallaPase({ paciente, rol, turnoId, onFinalizar, onCancelar }) {
             <div style={{ fontSize: 12, color: '#4a7c5f', marginTop: 6 }}>POSTA está organizando la evolución</div>
           </div>
         ) : !grabando ? (
-          <button onClick={iniciarGrabacion} style={{ width: 80, height: 80, borderRadius: '50%', background: S.verdeOsc, border: `2px solid rgba(82,183,136,0.4)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, cursor: 'pointer' }}>
-            🎙
-          </button>
-        ) : (
-          <div style={{ width: 80, height: 80, borderRadius: '50%', background: S.verdeOsc, border: `2px solid rgba(82,183,136,0.3)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>
-            🎙
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+            <button onClick={iniciarGrabacion} style={{ width: 80, height: 80, borderRadius: '50%', background: S.verdeOsc, border: `2px solid rgba(82,183,136,0.4)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, cursor: 'pointer' }}>🎙</button>
+            <div style={{ fontSize: 13, color: S.muted, textAlign: 'center', lineHeight: 1.5 }}>
+              Te escucho<br/>
+              <span style={{ fontSize: 11, color: '#4a7c5f' }}>hagamos esta guardia más ligera</span>
+            </div>
           </div>
-        )}
-
-        {!grabando && !procesando && (
-          <div style={{ fontSize: 13, color: S.muted, textAlign: 'center' }}>Tocá el micrófono para empezar a grabar</div>
+        ) : (
+          <div style={{ width: 80, height: 80, borderRadius: '50%', background: S.verdeOsc, border: `2px solid rgba(82,183,136,0.3)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>🎙</div>
         )}
       </div>
 
@@ -270,14 +416,34 @@ function PantallaPase({ paciente, rol, turnoId, onFinalizar, onCancelar }) {
   )
 }
 
-function PantallaFichaPaciente({ paciente, rol, turnoId, onSiguiente, onVolver }) {
+function generarTextoPDF(paciente, turnoInfo, medico) {
+  const evolucion = paciente.evolucion || ''
+  const partes = evolucion.split('---EVOLUCIÓN PARA HISTORIA CLÍNICA---')
+  const textoHC = partes[1]?.trim() || evolucion
+  return `EVOLUCIÓN MÉDICA
+${turnoInfo.institucion} · ${turnoInfo.servicio}
+${fechaHoy()} · Turno ${turnoInfo.turno}
+
+Paciente: ${paciente.nombre} · ${paciente.edad} años · DNI ${paciente.dni}
+Cama ${paciente.cama} · ${paciente.dx}
+
+${textoHC}
+
+${medico.nombre}
+${medico.especialidad} · Mat. Prov. ${medico.matriculaProv}${medico.matriculaNac ? ` · Mat. Nac. ${medico.matriculaNac}` : ''}`
+}
+
+function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVolver, onSiguiente }) {
   const [tab, setTab] = useState('evolucion')
-  const [mensajes, setMensajes] = useState([{ role: 'assistant', content: `Estoy al tanto de la evolución de ${paciente.nombre}. ¿Qué necesitás consultar?` }])
+  const [mensajes, setMensajes] = useState([{ role: 'assistant', content: `Analicemos juntos a ${paciente.nombre}. Estoy al tanto de todo lo que pasó hoy. Preguntame lo que necesitás.` }])
   const [inputChat, setInputChat] = useState('')
   const [loadingChat, setLoadingChat] = useState(false)
   const [grabandoConsulta, setGrabandoConsulta] = useState(false)
   const [grabandoPase, setGrabandoPase] = useState(false)
   const [contextoCompleto, setContextoCompleto] = useState(paciente.evolucion || '')
+  const [copiado, setCopiado] = useState(false)
+  const [editandoPDF, setEditandoPDF] = useState(false)
+  const [textoPDF, setTextoPDF] = useState('')
   const mediaConsultaRef = useRef(null)
   const chunksConsultaRef = useRef([])
   const mediaPaseRef = useRef(null)
@@ -287,7 +453,6 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, onSiguiente, onVolver }
   const partes = evolucion.split('---EVOLUCIÓN PARA HISTORIA CLÍNICA---')
   const seccionesCli = partes[0] || ''
   const textoHC = partes[1]?.trim() || ''
-  const [copiado, setCopiado] = useState(false)
 
   const secciones = seccionesCli.split('###').filter(s => s.trim()).map(s => {
     const lineas = s.trim().split('\n')
@@ -295,15 +460,22 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, onSiguiente, onVolver }
   })
 
   const colores = {
-    'Situación actual': '#52B788',
+    'Situación actual': S.verde,
     'Evolución del día': '#60A5FA',
     'Conducta / Plan': '#A78BFA',
-    'Estudios pendientes': '#EF9F27',
+    'Estudios pendientes': S.amber,
     'Medicación': '#74A98A',
-    'Urgente hoy': '#EF4444',
+    'Urgente hoy': S.rojo,
     'Pendiente próximos días': '#F97316',
-    'Alerta POSTA': '#EF9F27',
+    'Alerta POSTA': S.amber,
   }
+
+  useEffect(() => {
+    fetch(`${API}/posta/contexto/${turnoId}/${paciente.cama}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.contexto) setContextoCompleto(data.contexto + '\n\nEVOLUCIÓN:\n' + (paciente.evolucion || '')) })
+      .catch(() => {})
+  }, [])
 
   function copiar() {
     navigator.clipboard.writeText(textoHC || evolucion)
@@ -311,17 +483,21 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, onSiguiente, onVolver }
     setTimeout(() => setCopiado(false), 2000)
   }
 
-  async function cargarContexto() {
-    try {
-      const res = await fetch(`${API}/posta/contexto/${turnoId}/${paciente.cama}`)
-      if (res.ok) {
-        const data = await res.json()
-        if (data.contexto) setContextoCompleto(data.contexto + '\n\nEVOLUCIÓN GENERADA:\n' + (paciente.evolucion || ''))
-      }
-    } catch {}
+  function abrirEditorPDF() {
+    setTextoPDF(generarTextoPDF(paciente, turnoInfo, medico))
+    setEditandoPDF(true)
   }
 
-  useEffect(() => { cargarContexto() }, [])
+  function descargarPDF() {
+    const blob = new Blob([textoPDF], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `POSTA_Cama${paciente.cama}_${paciente.nombre.replace(/,\s*/g, '_')}_${fechaHoy().replace(/\//g, '-')}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+    setEditandoPDF(false)
+  }
 
   async function enviarChat(texto) {
     if (!texto.trim() || loadingChat) return
@@ -335,7 +511,7 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, onSiguiente, onVolver }
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           pregunta: texto,
-          contexto_paciente: `Paciente: ${paciente.nombre}, ${paciente.edad} años, Cama ${paciente.cama}. Diagnóstico: ${paciente.dx}.\n\nCONTEXTO COMPLETO DEL PASE:\n${contextoCompleto}`,
+          contexto_paciente: `Paciente: ${paciente.nombre}, ${paciente.edad} años, Cama ${paciente.cama}. Diagnóstico: ${paciente.dx}. Servicio: ${turnoInfo.servicio}.\n\nCONTEXTO DEL PASE:\n${contextoCompleto}`,
           historial: nuevos.slice(-6),
         })
       })
@@ -347,95 +523,36 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, onSiguiente, onVolver }
     setLoadingChat(false)
   }
 
-  async function iniciarGrabacionConsulta() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
-      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : {})
-      chunksConsultaRef.current = []
-      mr.ondataavailable = e => { if (e.data.size > 0) chunksConsultaRef.current.push(e.data) }
-      mr.start(500)
-      mediaConsultaRef.current = mr
-      setGrabandoConsulta(true)
-    } catch (e) {
-      alert('No se pudo acceder al micrófono: ' + e.message)
+  async function grabarConsulta(iniciar) {
+    if (iniciar) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
+        const mr = new MediaRecorder(stream, mimeType ? { mimeType } : {})
+        chunksConsultaRef.current = []
+        mr.ondataavailable = e => { if (e.data.size > 0) chunksConsultaRef.current.push(e.data) }
+        mr.start(500)
+        mediaConsultaRef.current = mr
+        setGrabandoConsulta(true)
+      } catch (e) { alert('Error micrófono: ' + e.message) }
+    } else {
+      mediaConsultaRef.current?.stop()
+      mediaConsultaRef.current?.stream.getTracks().forEach(t => t.stop())
+      setGrabandoConsulta(false)
+      await new Promise(r => setTimeout(r, 500))
+      const mimeType = chunksConsultaRef.current[0]?.type || 'audio/webm'
+      const blob = new Blob(chunksConsultaRef.current, { type: mimeType })
+      if (blob.size < 500) return
+      const fd = new FormData()
+      fd.append('audio', blob, mimeType.includes('mp4') ? 'consulta.mp4' : 'consulta.webm')
+      fd.append('turno_id', turnoId); fd.append('cama', paciente.cama); fd.append('nombre', paciente.nombre)
+      fd.append('dni', paciente.dni || ''); fd.append('edad', paciente.edad || ''); fd.append('dx', paciente.dx || ''); fd.append('rol', rol)
+      try {
+        const res = await fetch(`${API}/posta/audio`, { method: 'POST', body: fd })
+        const data = await res.json()
+        if (data.transcripcion) await enviarChat(data.transcripcion)
+      } catch {}
     }
-  }
-
-  async function detenerGrabacionConsulta() {
-    if (!mediaConsultaRef.current) return
-    mediaConsultaRef.current.stop()
-    mediaConsultaRef.current.stream.getTracks().forEach(t => t.stop())
-    setGrabandoConsulta(false)
-    await new Promise(r => setTimeout(r, 500))
-    const mimeType = chunksConsultaRef.current[0]?.type || 'audio/webm'
-    const blob = new Blob(chunksConsultaRef.current, { type: mimeType })
-    if (blob.size < 500) return
-    const ext = mimeType.includes('mp4') ? 'consulta.mp4' : 'consulta.webm'
-    const formData = new FormData()
-    formData.append('audio', blob, ext)
-    formData.append('turno_id', turnoId)
-    formData.append('cama', paciente.cama)
-    formData.append('nombre', paciente.nombre)
-    formData.append('dni', paciente.dni || '')
-    formData.append('edad', paciente.edad || '')
-    formData.append('dx', paciente.dx || '')
-    formData.append('rol', rol)
-    try {
-      const res = await fetch(`${API}/posta/audio`, { method: 'POST', body: formData })
-      const data = await res.json()
-      if (data.transcripcion) await enviarChat(data.transcripcion)
-    } catch {}
-  }
-
-  async function iniciarGrabacionPase() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
-      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : {})
-      chunksPaseRef.current = []
-      mr.ondataavailable = e => { if (e.data.size > 0) chunksPaseRef.current.push(e.data) }
-      mr.start(500)
-      mediaPaseRef.current = mr
-      setGrabandoPase(true)
-    } catch (e) {
-      alert('No se pudo acceder al micrófono: ' + e.message)
-    }
-  }
-
-  async function detenerGrabacionPase() {
-    if (!mediaPaseRef.current) return
-    mediaPaseRef.current.stop()
-    mediaPaseRef.current.stream.getTracks().forEach(t => t.stop())
-    setGrabandoPase(false)
-    await new Promise(r => setTimeout(r, 500))
-    const mimeType = chunksPaseRef.current[0]?.type || 'audio/webm'
-    const blob = new Blob(chunksPaseRef.current, { type: mimeType })
-    if (blob.size < 500) return
-    const ext = mimeType.includes('mp4') ? 'pase.mp4' : 'pase.webm'
-    const formData = new FormData()
-    formData.append('audio', blob, ext)
-    formData.append('turno_id', turnoId)
-    formData.append('cama', paciente.cama)
-    formData.append('nombre', paciente.nombre)
-    formData.append('dni', paciente.dni || '')
-    formData.append('edad', paciente.edad || '')
-    formData.append('dx', paciente.dx || '')
-    formData.append('rol', rol)
-    try {
-      const resAudio = await fetch(`${API}/posta/audio`, { method: 'POST', body: formData })
-      if (!resAudio.ok) return
-      const resAnalisis = await fetch(`${API}/posta/analizar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ turno_id: turnoId, cama: paciente.cama, nombre: paciente.nombre, edad: paciente.edad, dx: paciente.dx, rol })
-      })
-      if (resAnalisis.ok) {
-        const data = await resAnalisis.json()
-        setContextoCompleto(prev => prev + '\n\nACTUALIZACIÓN:\n' + (data.evolucion || ''))
-        alert('Evolución actualizada con el nuevo audio.')
-      }
-    } catch {}
   }
 
   const TABS = [
@@ -443,6 +560,34 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, onSiguiente, onVolver }
     { id: 'historia', label: 'Historia clínica' },
     { id: 'consultar', label: 'Consultar' },
   ]
+
+  if (editandoPDF) {
+    return (
+      <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ background: S.verdeCard, padding: '12px 16px', borderBottom: `0.5px solid ${S.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button onClick={() => setEditandoPDF(false)} style={{ background: 'none', border: 'none', color: S.muted, fontSize: 24, cursor: 'pointer', padding: 0, lineHeight: 1 }}>‹</button>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: S.verde }}>Revisar evolución</div>
+            <div style={{ fontSize: 11, color: S.muted }}>Editá antes de descargar</div>
+          </div>
+        </div>
+        <div style={{ flex: 1, padding: 16 }}>
+          <div style={{ fontSize: 11, color: S.muted, marginBottom: 8 }}>Podés corregir cualquier dato antes de descargar.</div>
+          <textarea
+            value={textoPDF}
+            onChange={e => setTextoPDF(e.target.value)}
+            style={{ width: '100%', minHeight: 360, background: S.verdeCard, border: `0.5px solid rgba(82,183,136,0.2)`, borderRadius: 10, padding: 12, fontSize: 12, color: S.text, outline: 'none', lineHeight: 1.7, resize: 'vertical', fontFamily: 'monospace' }}
+          />
+        </div>
+        <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}`, display: 'flex', gap: 8 }}>
+          <button onClick={() => setEditandoPDF(false)} style={{ flex: 1, background: 'transparent', color: S.muted, border: `0.5px solid ${S.border}`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+          <button onClick={descargarPDF} style={{ flex: 2, background: S.verdeOsc, color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 11, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+            Descargar PDF →
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column' }}>
@@ -473,7 +618,14 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, onSiguiente, onVolver }
               <div style={{ fontSize: 14, fontWeight: 500, color: S.text, marginBottom: 2 }}>{paciente.nombre}</div>
               <div style={{ fontSize: 12, color: S.verde }}>{paciente.dx}</div>
             </div>
-            {secciones.map((sec, i) => (
+
+            {secciones.length === 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 0', textAlign: 'center' }}>
+                <div style={{ width: 48, height: 48, borderRadius: '50%', background: S.verdeCard, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, marginBottom: 12 }}>⚕</div>
+                <div style={{ fontSize: 14, color: S.text, fontWeight: 500, marginBottom: 6 }}>Esperando evolución de hoy</div>
+                <div style={{ fontSize: 12, color: S.muted, lineHeight: 1.6 }}>Grabá el pase para que POSTA organice la evolución de esta guardia.</div>
+              </div>
+            ) : secciones.map((sec, i) => (
               <div key={i} style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 10, fontWeight: 500, color: colores[sec.titulo] || S.verde, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6, paddingLeft: 8, borderLeft: `2px solid ${colores[sec.titulo] || S.verde}` }}>
                   {sec.titulo}
@@ -489,14 +641,42 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, onSiguiente, onVolver }
               </div>
             ))}
           </div>
-          <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}` }}>
-            <div style={{ fontSize: 11, color: S.muted, textAlign: 'center', marginBottom: 8 }}>Agregá más contexto al pase</div>
+
+          <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
             <button
-              onClick={grabandoPase ? detenerGrabacionPase : iniciarGrabacionPase}
-              style={{ width: '100%', background: grabandoPase ? 'rgba(239,68,68,0.06)' : S.verdeCard, border: `0.5px solid ${grabandoPase ? 'rgba(239,68,68,0.4)' : 'rgba(82,183,136,0.2)'}`, borderRadius: 10, padding: 12, fontSize: 13, color: grabandoPase ? '#EF4444' : S.muted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              <span>🎙</span>
-              <span>{grabandoPase ? 'Grabando... tocá para detener y actualizar' : 'Agregar al pase por audio'}</span>
+              onClick={grabandoPase ? async () => {
+                mediaPaseRef.current?.stop()
+                mediaPaseRef.current?.stream.getTracks().forEach(t => t.stop())
+                setGrabandoPase(false)
+              } : async () => {
+                try {
+                  const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+                  const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm'
+                  const mr = new MediaRecorder(stream, { mimeType })
+                  chunksPaseRef.current = []
+                  mr.ondataavailable = e => { if (e.data.size > 0) chunksPaseRef.current.push(e.data) }
+                  mr.start(500)
+                  mediaPaseRef.current = mr
+                  setGrabandoPase(true)
+                } catch (e) { alert('Error micrófono') }
+              }}
+              style={{ width: '100%', background: grabandoPase ? 'rgba(239,68,68,0.06)' : S.verdeCard, border: `0.5px solid ${grabandoPase ? 'rgba(239,68,68,0.4)' : 'rgba(82,183,136,0.2)'}`, borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+              <div style={{ width: 40, height: 40, borderRadius: '50%', background: grabandoPase ? 'rgba(239,68,68,0.15)' : 'rgba(82,183,136,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>🎙</div>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: grabandoPase ? S.rojo : S.text }}>{grabandoPase ? 'Grabando... tocá para detener' : 'Te escucho, hagamos esta guardia más ligera'}</div>
+                <div style={{ fontSize: 11, color: S.muted, marginTop: 2 }}>{grabandoPase ? 'Hablá con normalidad' : 'Tocá para agregar al pase'}</div>
+              </div>
             </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {paciente.evolucion && (
+                <button onClick={abrirEditorPDF} style={{ flex: 1, background: 'transparent', color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer' }}>
+                  Descargar PDF
+                </button>
+              )}
+              <button onClick={onSiguiente} style={{ flex: 2, background: S.verdeOsc, color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 11, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+                + Siguiente paciente
+              </button>
+            </div>
           </div>
         </>
       )}
@@ -505,24 +685,30 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, onSiguiente, onVolver }
         <div style={{ flex: 1, padding: '14px 16px', overflowY: 'auto' }}>
           <div style={{ fontSize: 11, color: S.muted, marginBottom: 12 }}>Evoluciones anteriores — solo lectura</div>
           <div style={{ background: S.verdeCard, border: `0.5px solid rgba(82,183,136,0.1)`, borderRadius: 8, padding: '10px 12px', marginBottom: 10, opacity: 0.5 }}>
-            <div style={{ fontSize: 10, color: S.muted, marginBottom: 4 }}>Turno anterior</div>
-            <div style={{ fontSize: 12, color: '#9CA3AF', lineHeight: 1.6 }}>Sin registros anteriores en POSTA para este paciente.</div>
+            <div style={{ fontSize: 10, color: S.muted, marginBottom: 4 }}>Sin registros anteriores en POSTA</div>
+            <div style={{ fontSize: 12, color: '#9CA3AF', lineHeight: 1.6 }}>Las evoluciones previas aparecerán aquí en los próximos turnos.</div>
           </div>
-          <div style={{ fontSize: 10, fontWeight: 500, color: S.verde, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10, paddingLeft: 8, borderLeft: `2px solid ${S.verde}` }}>
-            Evolución de hoy — para copiar
-          </div>
-          {textoHC ? (
-            <div style={{ background: 'rgba(82,183,136,0.04)', border: `0.5px solid rgba(82,183,136,0.2)`, borderRadius: 10, padding: '12px 14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <div style={{ fontSize: 10, color: S.muted, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Lista para copiar</div>
-                <button onClick={copiar} style={{ fontSize: 11, color: copiado ? S.verde : S.muted, background: 'none', border: 'none', cursor: 'pointer' }}>
-                  {copiado ? '✓ Copiado' : 'Copiar'}
-                </button>
+          {textoHC && (
+            <>
+              <div style={{ fontSize: 10, fontWeight: 500, color: S.verde, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10, paddingLeft: 8, borderLeft: `2px solid ${S.verde}` }}>
+                Evolución de hoy · para copiar
               </div>
-              <div style={{ fontSize: 12, color: '#9CA3AF', lineHeight: 1.7 }}>{textoHC}</div>
-            </div>
-          ) : (
-            <div style={{ fontSize: 12, color: S.muted }}>El texto para historia clínica aparece después de finalizar el pase.</div>
+              <div style={{ background: 'rgba(82,183,136,0.04)', border: `0.5px solid rgba(82,183,136,0.2)`, borderRadius: 10, padding: '12px 14px', marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div style={{ fontSize: 10, color: S.muted, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Historia clínica</div>
+                  <button onClick={copiar} style={{ fontSize: 11, color: copiado ? S.verde : S.muted, background: 'none', border: 'none', cursor: 'pointer' }}>
+                    {copiado ? '✓ Copiado' : 'Copiar'}
+                  </button>
+                </div>
+                <div style={{ fontSize: 12, color: '#9CA3AF', lineHeight: 1.7 }}>{textoHC}</div>
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: `0.5px solid rgba(82,183,136,0.1)`, fontSize: 11, color: S.muted }}>
+                  {medico.nombre} · {medico.especialidad} · Mat. Prov. {medico.matriculaProv}
+                </div>
+              </div>
+              <button onClick={abrirEditorPDF} style={{ width: '100%', background: S.verdeOsc, color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 12, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+                Revisar y descargar PDF →
+              </button>
+            </>
           )}
         </div>
       )}
@@ -543,22 +729,22 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, onSiguiente, onVolver }
             )}
           </div>
           <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button
+              onClick={() => grabarConsulta(!grabandoConsulta)}
+              style={{ width: '100%', background: grabandoConsulta ? 'rgba(239,68,68,0.06)' : S.verdeCard, border: `0.5px solid ${grabandoConsulta ? 'rgba(239,68,68,0.4)' : 'rgba(82,183,136,0.2)'}`, borderRadius: 10, padding: 12, fontSize: 13, color: grabandoConsulta ? S.rojo : S.muted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <span>🎙</span>
+              <span>{grabandoConsulta ? 'Grabando... tocá para enviar' : 'Preguntá por audio'}</span>
+            </button>
             <div style={{ display: 'flex', gap: 8 }}>
               <input
                 value={inputChat}
                 onChange={e => setInputChat(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && enviarChat(inputChat)}
-                placeholder="Preguntá por texto..."
+                placeholder="O escribí tu pregunta aquí..."
                 style={{ flex: 1, background: S.verdeCard, border: `0.5px solid ${S.border}`, borderRadius: 8, padding: '9px 12px', fontSize: 13, color: S.text, outline: 'none' }}
               />
-              <button onClick={() => enviarChat(inputChat)} disabled={loadingChat || !inputChat.trim()} style={{ width: 36, height: 36, borderRadius: '50%', background: S.verdeOsc, border: 'none', color: S.verde, cursor: 'pointer', fontSize: 16 }}>↑</button>
+              <button onClick={() => enviarChat(inputChat)} disabled={loadingChat || !inputChat.trim()} style={{ width: 36, height: 36, borderRadius: '50%', background: S.verdeOsc, border: 'none', color: S.verde, cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>↑</button>
             </div>
-            <button
-              onClick={grabandoConsulta ? detenerGrabacionConsulta : iniciarGrabacionConsulta}
-              style={{ width: '100%', background: grabandoConsulta ? 'rgba(239,68,68,0.06)' : S.verdeCard, border: `0.5px solid ${grabandoConsulta ? 'rgba(239,68,68,0.4)' : 'rgba(82,183,136,0.2)'}`, borderRadius: 10, padding: 12, fontSize: 13, color: grabandoConsulta ? '#EF4444' : S.muted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              <span>🎙</span>
-              <span>{grabandoConsulta ? 'Grabando... tocá para enviar' : 'Preguntá por audio'}</span>
-            </button>
           </div>
         </>
       )}
@@ -566,111 +752,39 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, onSiguiente, onVolver }
   )
 }
 
-function PanelCamas({ rol, onNuevoPaciente, pacientes, onPaciente, onPDF }) {
-  const pasados = pacientes.filter(p => p.estado === 'pasado').length
-  const pendientes = pacientes.filter(p => p.estado !== 'pasado').length
-  const alertas = pacientes.filter(p => p.alerta).length
-  const ordenados = [...pacientes.filter(p => p.alerta), ...pacientes.filter(p => !p.alerta && p.estado !== 'pasado'), ...pacientes.filter(p => p.estado === 'pasado')]
-
-  return (
-    <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ background: S.verdeCard, padding: '14px 16px', borderBottom: `0.5px solid ${S.border}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: S.verde, letterSpacing: '0.08em' }}>POSTA</div>
-          <div style={{ fontSize: 11, color: S.verde, background: 'rgba(82,183,136,0.12)', padding: '3px 10px', borderRadius: 99, border: `0.5px solid rgba(82,183,136,0.2)`, textTransform: 'capitalize' }}>{rol}</div>
-        </div>
-        <div style={{ display: 'flex', gap: 16 }}>
-          <span style={{ fontSize: 11, color: S.muted }}>Total <strong style={{ color: S.verde }}>{pacientes.length}</strong></span>
-          <span style={{ fontSize: 11, color: S.muted }}>Pasados <strong style={{ color: S.verde }}>{pasados}</strong></span>
-          <span style={{ fontSize: 11, color: S.muted }}>Pendientes <strong style={{ color: S.verde }}>{pendientes}</strong></span>
-          {alertas > 0 && <span style={{ fontSize: 11, color: S.muted }}>Alertas <strong style={{ color: S.amber }}>{alertas}</strong></span>}
-        </div>
-      </div>
-
-      <div style={{ flex: 1, padding: '14px 16px', overflowY: 'auto' }}>
-        <div style={{ fontSize: 10, fontWeight: 500, color: S.muted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>Mis pacientes</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-          {ordenados.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '40px 0', color: S.muted, fontSize: 13 }}>
-              No hay pacientes todavía.<br />Tocá + para agregar el primero.
-            </div>
-          )}
-          {ordenados.map(p => (
-            <button key={p.id} onClick={() => onPaciente(p)}
-              style={{ background: p.alerta ? S.amberBg : S.verdeCard, border: `0.5px solid ${p.alerta ? S.amberBorder : p.estado === 'pasado' ? 'rgba(82,183,136,0.2)' : S.border}`, borderRadius: 10, padding: '11px 13px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', opacity: p.estado === 'pasado' ? 0.6 : 1, textAlign: 'left', width: '100%' }}>
-              <div style={{ width: 36, height: 36, borderRadius: 8, background: p.alerta ? 'rgba(186,117,23,0.15)' : p.estado === 'pasado' ? 'rgba(82,183,136,0.06)' : 'rgba(82,183,136,0.12)', color: p.alerta ? S.amber : S.verde, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, flexShrink: 0 }}>
-                {p.cama}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 500, color: S.text, marginBottom: 2 }}>{p.nombre}</div>
-                <div style={{ fontSize: 11, color: S.muted }}>{p.dx}</div>
-              </div>
-              <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 99, background: p.alerta ? 'rgba(186,117,23,0.1)' : p.estado === 'pasado' ? 'rgba(82,183,136,0.1)' : 'rgba(82,183,136,0.06)', color: p.alerta ? S.amber : p.estado === 'pasado' ? '#40916C' : S.muted, flexShrink: 0 }}>
-                {p.alerta ? '⚠ Alerta' : p.estado === 'pasado' ? 'Pasado' : 'Pendiente'}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <div style={{ height: '0.5px', background: 'rgba(82,183,136,0.1)', margin: '12px 0' }} />
-
-        <button onClick={onNuevoPaciente} style={{ width: '100%', background: 'rgba(82,183,136,0.04)', border: '0.5px dashed rgba(82,183,136,0.15)', borderRadius: 10, padding: '10px 13px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-          <div style={{ width: 28, height: 28, borderRadius: 6, background: 'rgba(82,183,136,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: S.verde, fontSize: 18 }}>+</div>
-          <div style={{ textAlign: 'left' }}>
-            <div style={{ fontSize: 12, color: S.verde }}>Agregar paciente</div>
-            <div style={{ fontSize: 11, color: '#4a7c5f' }}>Nuevo ingreso o transferencia</div>
-          </div>
-        </button>
-      </div>
-
-      <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {pasados > 0 && (
-          <button onClick={onPDF} style={{ width: '100%', background: S.verdeOsc, color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 13, fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
-            Generar PDF del turno ({pasados} pacientes)
-          </button>
-        )}
-        <button style={{ width: '100%', background: 'transparent', color: S.muted, border: `0.5px solid ${S.border}`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer' }}>
-          Finalizar turno
-        </button>
-      </div>
-    </div>
-  )
-}
-
 export default function App() {
-  const [rol, setRol] = useState('medico')
-  const [pantalla, setPantalla] = useState('panel')
-  const [pacientes, setPacientes] = useState([
-    { id: 1, cama: '8', nombre: 'Pérez, Juan Carlos', dni: '18432901', edad: '58', dx: 'Neumonía grave · ARM día 7', estado: 'pendiente', alerta: false, evolucion: null }
-  ])
-  const [pacienteActual, setPacienteActual] = useState({ id: 1, cama: '8', nombre: 'Pérez, Juan Carlos', dni: '18432901', edad: '58', dx: 'Neumonía grave · ARM día 7', estado: 'pendiente', alerta: false, evolucion: null })
+  const [rol, setRol] = useState(null)
+  const [pantalla, setPantalla] = useState('registro')
+  const [medico, setMedico] = useState(null)
+  const [turnoInfo, setTurnoInfo] = useState(null)
+  const [pacientes, setPacientes] = useState([])
+  const [pacienteActual, setPacienteActual] = useState(null)
   const [showModal, setShowModal] = useState(false)
   const [turnoId] = useState(generarTurnoId)
 
   useEffect(() => {
-    const handleBack = (e) => {
-      if (pantalla === 'chat') {
-        e.preventDefault()
-        setPantalla('evolucion')
-      } else if (pantalla === 'evolucion') {
-        e.preventDefault()
-        setPantalla('panel')
-      } else if (pantalla === 'pase') {
-        e.preventDefault()
-        setPantalla('panel')
-      }
+    const medicoGuardado = localStorage.getItem('posta_medico')
+    if (medicoGuardado) {
+      setMedico(JSON.parse(medicoGuardado))
+      setPantalla('rol')
     }
+  }, [])
+
+  useEffect(() => {
+    if (pantalla !== 'panel' && pantalla !== 'ficha') return
+    const handleBack = () => {
+      if (pantalla === 'ficha') setPantalla('panel')
+    }
+    window.history.pushState({}, '')
     window.addEventListener('popstate', handleBack)
     return () => window.removeEventListener('popstate', handleBack)
   }, [pantalla])
 
-  useEffect(() => {
-    if (pantalla !== 'panel') {
-      window.history.pushState({ pantalla }, '')
-    }
-  }, [pantalla])
-
-  if (!rol) return <PantallaRol onSelect={setRol} />
+  function guardarMedico(datos) {
+    localStorage.setItem('posta_medico', JSON.stringify(datos))
+    setMedico(datos)
+    setPantalla('rol')
+  }
 
   function agregarPaciente(form) {
     const nuevo = { id: Date.now(), ...form, estado: 'pendiente', alerta: false, evolucion: null }
@@ -683,29 +797,53 @@ export default function App() {
   function finalizarPase(pacienteConEvolucion) {
     setPacientes(prev => prev.map(p => p.id === pacienteConEvolucion.id ? pacienteConEvolucion : p))
     setPacienteActual(pacienteConEvolucion)
-    setPantalla('evolucion')
+    setPantalla('ficha')
   }
 
-  if (pantalla === 'pase' && pacienteActual) {
-    return <PantallaPase paciente={pacienteActual} rol={rol} turnoId={turnoId} onFinalizar={finalizarPase} onCancelar={() => setPantalla('panel')} />
+  function eliminarPaciente(id) {
+    setPacientes(prev => prev.filter(p => p.id !== id))
   }
 
-  if ((pantalla === 'evolucion' || pantalla === 'chat') && pacienteActual) {
-    return <PantallaFichaPaciente
+  function generarPdfTurno() {
+    const pasados = pacientes.filter(p => p.estado === 'pasado' && p.evolucion)
+    if (pasados.length === 0) { alert('No hay evoluciones generadas todavía.'); return }
+    const texto = pasados.map(p => generarTextoPDF(p, turnoInfo, medico)).join('\n\n' + '─'.repeat(50) + '\n\n')
+    const blob = new Blob([texto], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `POSTA_Turno_${turnoInfo.servicio.replace(/\s/g,'_')}_${fechaHoy().replace(/\//g,'-')}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  if (!medico && pantalla === 'registro') return <PantallaRegistro onGuardar={guardarMedico} />
+  if (!rol) return <PantallaRol onSelect={r => { setRol(r); setPantalla('turno') }} />
+  if (pantalla === 'turno') return <PantallaInicioTurno medico={medico} onComenzar={info => { setTurnoInfo(info); setPantalla('panel') }} />
+  if (pantalla === 'pase' && pacienteActual) return <PantallaPase paciente={pacienteActual} rol={rol} turnoId={turnoId} onFinalizar={finalizarPase} onCancelar={() => setPantalla('panel')} />
+  if (pantalla === 'ficha' && pacienteActual) return (
+    <PantallaFichaPaciente
       paciente={pacienteActual}
       rol={rol}
       turnoId={turnoId}
-      onSiguiente={() => { setPacienteActual(null); setShowModal(true); setPantalla('panel') }}
+      turnoInfo={turnoInfo}
+      medico={medico}
       onVolver={() => setPantalla('panel')}
+      onSiguiente={() => { setPacienteActual(null); setShowModal(true); setPantalla('panel') }}
     />
-  }
+  )
 
   return (
     <>
-      <PanelCamas rol={rol} pacientes={pacientes}
-        onNuevoPaciente={() => setShowModal(true)}
-        onPaciente={p => { setPacienteActual(p); setPantalla('evolucion') }}
-        onPDF={() => alert('Generando PDF del turno...')}
+      <PanelCamas
+        rol={rol}
+        turnoInfo={turnoInfo}
+        medico={medico}
+        pacientes={pacientes}
+        onPaciente={p => { setPacienteActual(p); setPantalla('ficha') }}
+        onAgregar={() => setShowModal(true)}
+        onEliminar={eliminarPaciente}
+        onPdfTurno={generarPdfTurno}
       />
       {showModal && <ModalPaciente onGuardar={agregarPaciente} onCerrar={() => setShowModal(false)} />}
     </>
