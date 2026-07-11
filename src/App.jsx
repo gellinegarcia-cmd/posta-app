@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { jsPDF } from 'jspdf'
 import './App.css'
 
 const API = 'https://kiosco-ai.onrender.com'
@@ -589,18 +590,53 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVo
   }
 
   function abrirEditorPDF() {
+    if (!paciente.evolucion) {
+      alert('Primero grabá el pase para generar la evolución de este paciente.')
+      return
+    }
     setTextoPDF(generarTextoPDFIndividual(paciente, turnoInfo, medico))
     setEditandoPDF(true)
   }
 
   function descargarPDF() {
-    const blob = new Blob([textoPDF], { type: 'text/plain;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `POSTA_Cama${paciente.cama}_${paciente.nombre.replace(/,\s*/g, '_')}_${fechaHoy().replace(/\//g, '-')}.txt`
-    a.click()
-    URL.revokeObjectURL(url)
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+    const margen = 15
+    const anchoUtil = 180
+    let y = 20
+
+    const addLinea = (texto, size = 10, bold = false) => {
+      doc.setFontSize(size)
+      doc.setFont('helvetica', bold ? 'bold' : 'normal')
+      const lineas = doc.splitTextToSize(texto, anchoUtil)
+      lineas.forEach(l => {
+        if (y > 270) { doc.addPage(); y = 20 }
+        doc.text(l, margen, y)
+        y += size * 0.45
+      })
+    }
+
+    const addSeparador = () => {
+      doc.setDrawColor(180, 180, 180)
+      doc.line(margen, y, margen + anchoUtil, y)
+      y += 5
+    }
+
+    const lineas = textoPDF.split('\n')
+    lineas.forEach(linea => {
+      const trimmed = linea.trim()
+      if (trimmed.match(/^─+$/)) {
+        addSeparador()
+      } else if (trimmed === trimmed.toUpperCase() && trimmed.length > 3 && !trimmed.startsWith('•')) {
+        y += 2
+        addLinea(trimmed, 10, true)
+        y += 2
+      } else {
+        addLinea(linea, 9, false)
+      }
+    })
+
+    const nombreArchivo = `POSTA_Cama${paciente.cama}_${paciente.nombre.replace(/,\s*/g, '_')}_${fechaHoy().replace(/\//g, '-')}.pdf`
+    doc.save(nombreArchivo)
     setEditandoPDF(false)
   }
 
@@ -946,13 +982,43 @@ export default function App() {
     const pasados = pacientes.filter(p => p.estado === 'pasado' && p.evolucion)
     if (pasados.length === 0) { alert('No hay evoluciones generadas todavía.'); return }
     const texto = generarTextoPDFTurno(pacientes, turnoInfo, medico)
-    const blob = new Blob([texto], { type: 'text/plain;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `POSTA_Pase_${turnoInfo.servicio.replace(/\s/g,'_')}_${fechaHoy().replace(/\//g,'-')}.txt`
-    a.click()
-    URL.revokeObjectURL(url)
+
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+    const margen = 15
+    const anchoUtil = 180
+    let y = 20
+
+    const addLinea = (texto, size = 10, bold = false) => {
+      doc.setFontSize(size)
+      doc.setFont('helvetica', bold ? 'bold' : 'normal')
+      const lineas = doc.splitTextToSize(texto, anchoUtil)
+      lineas.forEach(l => {
+        if (y > 270) { doc.addPage(); y = 20 }
+        doc.text(l, margen, y)
+        y += size * 0.45
+      })
+    }
+
+    const addSeparador = () => {
+      doc.setDrawColor(180, 180, 180)
+      doc.line(margen, y, margen + anchoUtil, y)
+      y += 5
+    }
+
+    texto.split('\n').forEach(linea => {
+      const trimmed = linea.trim()
+      if (trimmed.match(/^─+$/)) {
+        addSeparador()
+      } else if (trimmed === trimmed.toUpperCase() && trimmed.length > 3 && !trimmed.startsWith('•')) {
+        y += 2
+        addLinea(trimmed, 10, true)
+        y += 2
+      } else {
+        addLinea(linea, 9, false)
+      }
+    })
+
+    doc.save(`POSTA_Pase_${turnoInfo.servicio.replace(/\s/g,'_')}_${fechaHoy().replace(/\//g,'-')}.pdf`)
   }
 
   if (!medico && pantalla === 'registro') return <PantallaRegistro onGuardar={guardarMedico} />
