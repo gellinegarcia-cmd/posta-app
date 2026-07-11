@@ -426,44 +426,105 @@ function PantallaPase({ paciente, rol, turnoId, onFinalizar, onCancelar }) {
   )
 }
 
-function generarTextoPDF(paciente, turnoInfo, medico) {
+function generarTextoPDFIndividual(paciente, turnoInfo, medico) {
   const evolucion = paciente.evolucion || ''
   const partes = evolucion.split('---EVOLUCIÓN PARA HISTORIA CLÍNICA---')
   const seccionesRaw = partes[0] || ''
-  const textoHC = partes[1]?.trim() || ''
 
-  const secciones = seccionesRaw.split('###').filter(s => s.trim()).map(s => {
-    const lineas = s.trim().split('\n').filter(l => l.trim())
-    const titulo = lineas[0]?.trim() || ''
-    const contenido = lineas.slice(1).map(l => '  • ' + l.replace(/^[-•*]\s*/, '').trim()).join('\n')
-    return titulo ? `${titulo.toUpperCase()}\n${contenido}` : ''
-  }).filter(Boolean).join('\n\n')
+  const getSec = (titulo) => {
+    const regex = new RegExp(`###\\s*${titulo}\\s*\\n([\\s\\S]*?)(?=###|---EVOLUCIÓN|$)`, 'i')
+    const match = seccionesRaw.match(regex)
+    if (!match) return ''
+    return match[1].trim().split('\n').filter(l => l.trim())
+      .map(l => '  • ' + l.replace(/^[-•*]\s*/, '').replace(/\*\*/g, '').trim())
+      .join('\n')
+  }
 
-  const separador = '─'.repeat(48)
+  const situacion = getSec('Situación actual')
+  const evolucionDia = getSec('Evolución del día')
+  const conducta = getSec('Conducta / Plan')
+  const medicacion = getSec('Medicación')
+  const urgente = getSec('Urgente hoy')
+  const pendiente = getSec('Pendiente próximos días')
+  const sep = '─'.repeat(48)
 
-  return `EVOLUCIÓN MÉDICA
-${separador}
-Institución : ${turnoInfo.institucion}
-Servicio    : ${turnoInfo.servicio}
-Fecha       : ${fechaHoy()} · Turno ${turnoInfo.turno}
-${separador}
+  let contenido = `EVOLUCIÓN MÉDICA
+${sep}
+${turnoInfo.institucion} · ${turnoInfo.servicio}
+${fechaHoy()} · Turno ${turnoInfo.turno} · Cama ${paciente.cama}
+${sep}
 Paciente    : ${paciente.nombre}
 Edad / DNI  : ${paciente.edad} años · DNI ${paciente.dni}
-Cama        : ${paciente.cama}
 Diagnóstico : ${paciente.dx}
-${separador}
+${sep}
+`
+  if (situacion) contenido += `\nDIAGNÓSTICO / SITUACIÓN ACTUAL\n${situacion}\n`
+  if (evolucionDia) contenido += `\nEVOLUCIÓN DEL DÍA\n${evolucionDia}\n`
+  if (conducta) contenido += `\nAL PIE DE CAMA / CONDUCTA\n${conducta}\n`
+  if (medicacion) contenido += `\nINDICACIONES\n${medicacion}\n`
+  if (urgente) contenido += `\nURGENTE HOY\n${urgente}\n`
+  if (pendiente) contenido += `\nPENDIENTE\n${pendiente}\n`
 
-${secciones}
+  contenido += `
+${sep}
+Firma y sello
 
-${separador}
-PARA HISTORIA CLÍNICA
-${separador}
-${limpiarTexto(textoHC)}
-
-${separador}
 ${medico.nombre}
 ${medico.especialidad}${medico.matriculaProv ? ` · Mat. Prov. ${medico.matriculaProv}` : ''}${medico.matriculaNac ? ` · Mat. Nac. ${medico.matriculaNac}` : ''}
-${separador}`
+${sep}`
+
+  return contenido
+}
+
+function generarTextoPDFTurno(pacientes, turnoInfo, medico) {
+  const sep = '─'.repeat(48)
+  const pasados = pacientes.filter(p => p.estado === 'pasado' && p.evolucion)
+
+  const resumen = pasados.map(p => {
+    const evolucion = p.evolucion || ''
+    const partes = evolucion.split('---EVOLUCIÓN PARA HISTORIA CLÍNICA---')
+    const seccionesRaw = partes[0] || ''
+
+    const getSec = (titulo) => {
+      const regex = new RegExp(`###\\s*${titulo}\\s*\\n([\\s\\S]*?)(?=###|---EVOLUCIÓN|$)`, 'i')
+      const match = seccionesRaw.match(regex)
+      if (!match) return ''
+      return match[1].trim().split('\n').filter(l => l.trim())
+        .map(l => '  • ' + l.replace(/^[-•*]\s*/, '').replace(/\*\*/g, '').trim())
+        .join('\n')
+    }
+
+    const situacion = getSec('Situación actual')
+    const evolucionDia = getSec('Evolución del día')
+    const conducta = getSec('Conducta / Plan')
+    const urgente = getSec('Urgente hoy')
+    const pendiente = getSec('Pendiente próximos días')
+
+    let bloque = `CAMA ${p.cama} · ${p.nombre} · ${p.edad} años · DNI ${p.dni}
+Diagnóstico: ${p.dx}
+`
+    if (situacion) bloque += `\nSITUACIÓN ACTUAL\n${situacion}\n`
+    if (evolucionDia) bloque += `\nEVOLUCIÓN DEL DÍA\n${evolucionDia}\n`
+    if (conducta) bloque += `\nCONDUCTA\n${conducta}\n`
+    if (urgente) bloque += `\nURGENTE HOY\n${urgente}\n`
+    if (pendiente) bloque += `\nPENDIENTE\n${pendiente}\n`
+
+    return bloque
+  }).join(`\n${sep}\n\n`)
+
+  return `PASE DE GUARDIA
+${sep}
+${turnoInfo.institucion} · ${turnoInfo.servicio}
+${fechaHoy()} · Turno ${turnoInfo.turno}
+${sep}
+${medico.nombre} · ${medico.especialidad}${medico.matriculaProv ? ` · Mat. Prov. ${medico.matriculaProv}` : ''}
+${sep}
+
+${resumen}
+
+${sep}
+Total pacientes: ${pasados.length}
+${sep}`
 }
 
 function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVolver, onSiguiente }) {
@@ -528,7 +589,7 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVo
   }
 
   function abrirEditorPDF() {
-    setTextoPDF(generarTextoPDF(paciente, turnoInfo, medico))
+    setTextoPDF(generarTextoPDFIndividual(paciente, turnoInfo, medico))
     setEditandoPDF(true)
   }
 
@@ -725,11 +786,9 @@ Respondé siempre en el contexto de este paciente específico. Sé preciso y cer
               </div>
             </button>
             <div style={{ display: 'flex', gap: 8 }}>
-              {paciente.evolucion && (
-                <button onClick={abrirEditorPDF} style={{ flex: 1, background: 'transparent', color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer' }}>
-                  Descargar PDF
-                </button>
-              )}
+              <button onClick={abrirEditorPDF} style={{ flex: 1, background: 'transparent', color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer' }}>
+                Descargar PDF
+              </button>
               <button onClick={onSiguiente} style={{ flex: 2, background: S.verdeOsc, color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 11, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
                 + Siguiente paciente
               </button>
@@ -886,12 +945,12 @@ export default function App() {
   function generarPdfTurno() {
     const pasados = pacientes.filter(p => p.estado === 'pasado' && p.evolucion)
     if (pasados.length === 0) { alert('No hay evoluciones generadas todavía.'); return }
-    const texto = pasados.map(p => generarTextoPDF(p, turnoInfo, medico)).join('\n\n' + '─'.repeat(50) + '\n\n')
+    const texto = generarTextoPDFTurno(pacientes, turnoInfo, medico)
     const blob = new Blob([texto], { type: 'text/plain;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `POSTA_Turno_${turnoInfo.servicio.replace(/\s/g,'_')}_${fechaHoy().replace(/\//g,'-')}.txt`
+    a.download = `POSTA_Pase_${turnoInfo.servicio.replace(/\s/g,'_')}_${fechaHoy().replace(/\//g,'-')}.txt`
     a.click()
     URL.revokeObjectURL(url)
   }
