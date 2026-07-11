@@ -45,13 +45,9 @@ function limpiarTexto(texto) {
     .trim()
 }
 
-function PantallaRol({ onSelect, onVolver, onCambiarProfesional }) {
+function PantallaRol({ onSelect, onCambiarProfesional }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, background: S.bg }}>
-      <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 0 }}>
-        <button onClick={onVolver} style={{ background: 'none', border: 'none', color: S.muted, fontSize: 24, cursor: 'pointer', padding: 0, lineHeight: 1 }}>‹</button>
-        <div style={{ fontSize: 13, color: S.muted }}>Volver al registro</div>
-      </div>
       <div style={{ width: 10, height: 10, borderRadius: '50%', background: S.verde, marginBottom: 16 }} />
       <div style={{ fontSize: 32, fontWeight: 700, color: S.verde, letterSpacing: '0.1em', marginBottom: 6 }}>POSTA</div>
       <div style={{ fontSize: 12, color: S.muted, marginBottom: 56, letterSpacing: '0.06em' }}>La verdad de cada guardia</div>
@@ -1103,7 +1099,6 @@ export default function App() {
   if (!rol) return (
     <PantallaRol
       onSelect={r => { setRol(r); localStorage.setItem('posta_rol', r); setPantalla('turno') }}
-      onVolver={() => setPantalla('registro')}
       onCambiarProfesional={() => {
         localStorage.removeItem('posta_medico')
         localStorage.removeItem('posta_rol')
