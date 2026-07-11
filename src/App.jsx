@@ -45,7 +45,7 @@ function limpiarTexto(texto) {
     .trim()
 }
 
-function PantallaRol({ onSelect, onVolver }) {
+function PantallaRol({ onSelect, onVolver, onCambiarProfesional }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, background: S.bg }}>
       <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 0 }}>
@@ -63,12 +63,21 @@ function PantallaRol({ onSelect, onVolver }) {
           </button>
         ))}
       </div>
+      <button onClick={onCambiarProfesional} style={{ marginTop: 24, width: '100%', maxWidth: 320, background: 'transparent', color: S.muted, border: `0.5px solid ${S.border}`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer' }}>
+        Cambiar profesional
+      </button>
     </div>
   )
 }
 
-function PantallaRegistro({ onGuardar }) {
-  const [form, setForm] = useState({ nombre: '', matriculaProv: '', matriculaNac: '', especialidad: '', institucionDefault: '' })
+function PantallaRegistro({ onGuardar, onSaltear }) {
+  const [form, setForm] = useState(() => {
+    try {
+      const guardado = localStorage.getItem('posta_medico')
+      if (guardado) return JSON.parse(guardado)
+    } catch {}
+    return { nombre: '', matriculaProv: '', matriculaNac: '', especialidad: '', institucionDefault: '' }
+  })
   const upd = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const campos = [
     ['nombre', 'Nombre completo', 'Dr. García, Juan Carlos'],
@@ -91,6 +100,11 @@ function PantallaRegistro({ onGuardar }) {
               style={{ width: '100%', background: S.verdeCard, border: `0.5px solid rgba(82,183,136,0.2)`, borderRadius: 8, padding: '10px 12px', fontSize: 14, color: S.text, outline: 'none' }} />
           </div>
         ))}
+        {localStorage.getItem('posta_medico') && (
+          <button onClick={onSaltear} style={{ width: '100%', background: 'transparent', color: S.muted, border: `0.5px solid ${S.border}`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer', marginTop: 8 }}>
+            Continuar sin cambios →
+          </button>
+        )}
       </div>
       <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}` }}>
         <button onClick={() => form.nombre && onGuardar(form)} style={{ width: '100%', background: S.verdeOsc, color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 13, fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
@@ -189,7 +203,7 @@ function ModalPaciente({ onGuardar, onCerrar }) {
   )
 }
 
-function PanelCamas({ rol, turnoInfo, medico, pacientes, onPaciente, onAgregar, onEliminar, onPdfTurno, onFinalizar, onVolver }) {
+function PanelCamas({ rol, turnoInfo, medico, pacientes, onPaciente, onAgregar, onEliminar, onPdfTurno, onFinalizar, onVolver, onEditarPerfil }) {
   const [swipedId, setSwipedId] = useState(null)
   const touchStartX = useRef(0)
   const pasados = pacientes.filter(p => p.estado === 'pasado').length
@@ -214,6 +228,9 @@ function PanelCamas({ rol, turnoInfo, medico, pacientes, onPaciente, onAgregar, 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button onClick={() => onVolver()} style={{ background: 'none', border: 'none', color: S.muted, fontSize: 24, cursor: 'pointer', padding: 0, lineHeight: 1 }}>‹</button>
+            <button onClick={onEditarPerfil} style={{ background: 'none', border: 'none', color: S.muted, cursor: 'pointer', fontSize: 18, padding: 0 }} title="Editar perfil">
+              ⚙
+            </button>
             <div style={{ fontSize: 15, fontWeight: 700, color: S.verde, letterSpacing: '0.08em' }}>POSTA</div>
           </div>
           <div style={{ fontSize: 11, color: S.verde, background: 'rgba(82,183,136,0.12)', padding: '3px 10px', borderRadius: 99, border: `0.5px solid rgba(82,183,136,0.2)`, textTransform: 'capitalize' }}>{rol}</div>
@@ -1060,8 +1077,35 @@ export default function App() {
     doc.save(`POSTA_Pase_${turnoInfo.servicio.replace(/\s/g,'_')}_${fechaHoy().replace(/\//g,'-')}.pdf`)
   }
 
-  if (!medico && pantalla === 'registro') return <PantallaRegistro onGuardar={guardarMedico} />
-  if (!rol) return <PantallaRol onSelect={r => { setRol(r); localStorage.setItem('posta_rol', r); setPantalla('turno') }} onVolver={() => setPantalla('registro')} />
+  if (pantalla === 'registro') return (
+    <PantallaRegistro
+      onGuardar={guardarMedico}
+      onSaltear={() => {
+        const rolGuardado = localStorage.getItem('posta_rol')
+        const turnoGuardado = localStorage.getItem('posta_turno_info')
+        setPantalla(turnoGuardado ? 'panel' : rolGuardado ? 'turno' : 'rol')
+      }}
+    />
+  )
+  if (!rol) return (
+    <PantallaRol
+      onSelect={r => { setRol(r); localStorage.setItem('posta_rol', r); setPantalla('turno') }}
+      onVolver={() => setPantalla('registro')}
+      onCambiarProfesional={() => {
+        localStorage.removeItem('posta_medico')
+        localStorage.removeItem('posta_rol')
+        localStorage.removeItem('posta_turno_info')
+        localStorage.removeItem('posta_pacientes')
+        localStorage.removeItem('posta_paciente_actual')
+        setMedico(null)
+        setRol(null)
+        setTurnoInfo(null)
+        setPacientes([])
+        setPacienteActual(null)
+        setPantalla('registro')
+      }}
+    />
+  )
   if (pantalla === 'turno') return <PantallaInicioTurno medico={medico} onComenzar={info => { setTurnoInfo(info); localStorage.setItem('posta_turno_info', JSON.stringify(info)); setPantalla('panel') }} onVolver={() => { localStorage.removeItem('posta_rol'); setRol(null); setPantalla('rol') }} />
   if (pantalla === 'pase' && pacienteActual) return <PantallaPase paciente={pacienteActual} rol={rol} turnoId={turnoId} onFinalizar={finalizarPase} onCancelar={() => setPantalla('panel')} />
   if (pantalla === 'ficha' && pacienteActual) return (
@@ -1088,6 +1132,7 @@ export default function App() {
         onEliminar={eliminarPaciente}
         onPdfTurno={generarPdfTurno}
         onVolver={volverAtras}
+        onEditarPerfil={() => setPantalla('registro')}
         onFinalizar={() => {
           setRol(null)
           setTurnoInfo(null)
