@@ -642,6 +642,8 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVo
     })
 
     const nombreArchivo = `POSTA_Cama${paciente.cama}_${paciente.nombre.replace(/,\s*/g, '_')}_${fechaHoy().replace(/\//g, '-')}.pdf`
+    console.log('jsPDF instance:', doc)
+    console.log('jsPDF type:', typeof doc.save)
     doc.save(nombreArchivo)
     setEditandoPDF(false)
   }
