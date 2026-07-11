@@ -727,6 +727,7 @@ Respondé siempre en el contexto de este paciente específico. Sé preciso y cer
     { id: 'consultar', label: 'Consultar' },
   ]
 
+  // --- PRIMERO verificar si estamos en modo editor PDF ---
   if (editandoPDF) {
     return (
       <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column' }}>
@@ -755,6 +756,7 @@ Respondé siempre en el contexto de este paciente específico. Sé preciso y cer
     )
   }
 
+  // --- DESPUÉS el return normal del componente ---
   return (
     <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column' }}>
       <div style={{ background: S.verdeCard, padding: '12px 16px', borderBottom: `0.5px solid ${S.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
