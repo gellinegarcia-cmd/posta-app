@@ -106,16 +106,16 @@ function PantallaRegistro({ onGuardar, onSaltear, onVolver }) {
               style={{ width: '100%', background: S.verdeCard, border: `0.5px solid rgba(82,183,136,0.2)`, borderRadius: 8, padding: '10px 12px', fontSize: 14, color: S.text, outline: 'none' }} />
           </div>
         ))}
-        {localStorage.getItem('posta_medico') && (
-          <button onClick={onSaltear} style={{ width: '100%', background: 'transparent', color: S.muted, border: `0.5px solid ${S.border}`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer', marginTop: 8 }}>
-            Continuar sin cambios →
-          </button>
-        )}
       </div>
-      <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}` }}>
+      <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <button onClick={() => form.nombre && onGuardar(form)} style={{ width: '100%', background: S.verdeOsc, color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 13, fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
           Guardar y entrar a guardia →
         </button>
+        {hayMedicoGuardado && (
+          <button onClick={onSaltear} style={{ width: '100%', background: 'transparent', color: S.muted, border: `0.5px solid ${S.border}`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer' }}>
+            Continuar sin cambios
+          </button>
+        )}
       </div>
     </div>
   )
