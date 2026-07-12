@@ -578,6 +578,8 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVo
   const [evolucionHoy, setEvolucionHoy] = useState(paciente.evolucion || null)
   const [inputTexto, setInputTexto] = useState('')
   const [actualizando, setActualizando] = useState(false)
+  const [subiendoImagen, setSubiendoImagen] = useState(false)
+  const inputImagenRef = useRef(null)
   const [mensajes, setMensajes] = useState(() => {
     try {
       const guardados = localStorage.getItem(`posta_chat_${paciente.id}`)
@@ -656,6 +658,51 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVo
       alert('Error al actualizar: ' + e.message)
     }
     setActualizando(false)
+  }
+
+  async function analizarImagen(archivo) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = async (e) => {
+        try {
+          const base64 = e.target.result.split(',')[1]
+          const mimeType = archivo.type || 'image/jpeg'
+
+          const res = await fetch(`${API}/posta/analizar-imagen`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              imagen_base64: base64,
+              mime_type: mimeType,
+              nombre: paciente.nombre,
+              edad: paciente.edad,
+              dx: paciente.dx,
+            })
+          })
+
+          const data = await res.json()
+          resolve(data.hallazgo || '')
+        } catch(e) {
+          reject(e)
+        }
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(archivo)
+    })
+  }
+
+  async function handleImagen(e) {
+    const archivo = e.target.files?.[0]
+    if (!archivo) return
+    setSubiendoImagen(true)
+    try {
+      const hallazgo = await analizarImagen(archivo)
+      if (hallazgo) await actualizarEvolucion(hallazgo)
+    } catch(err) {
+      alert('Error al analizar imagen: ' + err.message)
+    }
+    setSubiendoImagen(false)
+    e.target.value = ''
   }
 
   function abrirEditorPDF() {
@@ -869,11 +916,20 @@ Respondé siempre en el contexto de este paciente específico. Sé preciso y cer
 
           <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
 
-            {actualizando && (
+            {(actualizando || subiendoImagen) && (
               <div style={{ textAlign: 'center', padding: '8px 0', fontSize: 12, color: S.muted, fontStyle: 'italic' }}>
-                Actualizando evolución...
+                {subiendoImagen ? '📷 Analizando imagen...' : 'Actualizando evolución...'}
               </div>
             )}
+
+            <input
+              ref={inputImagenRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleImagen}
+              style={{ display: 'none' }}
+            />
 
             <button
               onClick={grabandoPase ? async () => {
@@ -923,7 +979,14 @@ Respondé siempre en el contexto de este paciente específico. Sé preciso y cer
               </div>
             </button>
 
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button
+                onClick={() => inputImagenRef.current?.click()}
+                disabled={subiendoImagen || actualizando}
+                title="Subir imagen clínica"
+                style={{ width: 36, height: 36, borderRadius: 8, background: subiendoImagen ? 'rgba(82,183,136,0.2)' : S.verdeCard, border: `0.5px solid rgba(82,183,136,0.2)`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, fontSize: 18 }}>
+                {subiendoImagen ? '⏳' : '📷'}
+              </button>
               <input
                 value={inputTexto}
                 onChange={e => setInputTexto(e.target.value)}
