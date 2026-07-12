@@ -925,8 +925,7 @@ Respondé siempre en el contexto de este paciente específico. Sé preciso y cer
             <input
               ref={inputImagenRef}
               type="file"
-              accept="image/*"
-              capture="environment"
+              accept="image/*,application/pdf"
               onChange={handleImagen}
               style={{ display: 'none' }}
             />
