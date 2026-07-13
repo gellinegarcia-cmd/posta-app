@@ -575,7 +575,11 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVo
   const [editandoPDF, setEditandoPDF] = useState(false)
   const [textoPDF, setTextoPDF] = useState('')
   const [tab, setTab] = useState('evolucion')
-  const [evolucionHoy, setEvolucionHoy] = useState(paciente.evolucion || null)
+  const [evolucionHoy, setEvolucionHoy] = useState(() => {
+    try {
+      return localStorage.getItem(claveEvolucionHoy) || paciente.evolucion || null
+    } catch { return paciente.evolucion || null }
+  })
   const [inputTexto, setInputTexto] = useState('')
   const [actualizando, setActualizando] = useState(false)
   const [subiendoImagen, setSubiendoImagen] = useState(false)
