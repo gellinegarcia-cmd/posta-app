@@ -1309,12 +1309,17 @@ function PantallaFichaServicio({ paciente, servicioId, medico, turnoInfo, onVolv
   const [historia, setHistoria] = useState(null)
   const [cargando, setCargando] = useState(true)
   const [grabando, setGrabando] = useState(false)
-  const [procesando, setProcesando] = useState(false)
+  const [actualizando, setActualizando] = useState(false)
   const [evolucionHoy, setEvolucionHoy] = useState(null)
+  const [inputTexto, setInputTexto] = useState('')
+  const [subiendoImagen, setSubiendoImagen] = useState(false)
+  const [editandoPDF, setEditandoPDF] = useState(false)
+  const [textoPDF, setTextoPDF] = useState('')
   const [tab, setTab] = useState('historia')
   const [mostrarEgreso, setMostrarEgreso] = useState(false)
   const mediaRef = useRef(null)
   const chunksRef = useRef([])
+  const inputImagenRef = useRef(null)
   const turnoId = useRef('T' + Date.now().toString(36).toUpperCase())
 
   useEffect(() => { cargarHistoria() }, [paciente.id_paciente])
@@ -1330,50 +1335,25 @@ function PantallaFichaServicio({ paciente, servicioId, medico, turnoInfo, onVolv
     setCargando(false)
   }
 
-  async function iniciarGrabacion() {
+  async function actualizarEvolucion(nuevoContexto) {
+    if (!nuevoContexto.trim()) return
+    setActualizando(true)
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/mp4'
-      const mr = new MediaRecorder(stream, { mimeType })
-      chunksRef.current = []
-      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-      mr.start(500)
-      mediaRef.current = mr
-      setGrabando(true)
-    } catch(e) { alert('Error micrófono: ' + e.message) }
-  }
+      const contextoCompleto = `${evolucionHoy ? `EVOLUCIÓN PREVIA DEL DÍA:\n${evolucionHoy}\n\n` : ''}NUEVA INFORMACIÓN:\n${nuevoContexto}`
 
-  async function finalizarGrabacion() {
-    if (!mediaRef.current) return
-    mediaRef.current.stop()
-    mediaRef.current.stream.getTracks().forEach(t => t.stop())
-    setGrabando(false)
-    setProcesando(true)
-    await new Promise(r => setTimeout(r, 800))
-    const mimeType = chunksRef.current[0]?.type || 'audio/webm'
-    const blob = new Blob(chunksRef.current, { type: mimeType })
-    if (blob.size < 500) { setProcesando(false); return }
-    const fd = new FormData()
-    fd.append('audio', blob, mimeType.includes('mp4') ? 'pase.mp4' : 'pase.webm')
-    fd.append('turno_id', turnoId.current)
-    fd.append('cama', paciente.cama)
-    fd.append('nombre', paciente.nombre)
-    fd.append('dni', paciente.dni || '')
-    fd.append('edad', paciente.edad || '')
-    fd.append('dx', paciente.dx || '')
-    fd.append('rol', 'medico')
-    try {
-      const resAudio = await fetch(`${API}/posta/audio`, { method: 'POST', body: fd })
-      if (!resAudio.ok) throw new Error('Error subiendo audio')
-      const resAnalisis = await fetch(`${API}/posta/analizar`, {
+      const res = await fetch(`${API}/posta/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ turno_id: turnoId.current, cama: paciente.cama, nombre: paciente.nombre, edad: paciente.edad, dx: paciente.dx, rol: 'medico' })
+        body: JSON.stringify({
+          pregunta: `Actualizá la evolución del día de este paciente integrando la nueva información. Generá una evolución completa y actualizada en el mismo formato estructurado (### Situación actual, ### Evolución del día, etc.). No dupliques información, integrá todo coherentemente.`,
+          contexto_paciente: `Paciente: ${paciente.nombre}, ${paciente.edad} años, Cama ${paciente.cama}. Diagnóstico: ${paciente.dx}.\n\n${contextoCompleto}`,
+          historial: [],
+        })
       })
-      const dataAnalisis = await resAnalisis.json()
-      if (dataAnalisis.evolucion) {
-        setEvolucionHoy(dataAnalisis.evolucion)
-        setTab('evolucion')
+      const data = await res.json()
+      if (data.respuesta) {
+        const nuevaEvolucion = data.respuesta
+        setEvolucionHoy(nuevaEvolucion)
         await fetch(`${API}/posta/evolucion/guardar`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1385,14 +1365,120 @@ function PantallaFichaServicio({ paciente, servicioId, medico, turnoInfo, onVolv
             medico: medico?.nombre || '',
             matricula: medico?.matriculaProv || '',
             servicio_id: servicioId,
-            evolucion: dataAnalisis.evolucion,
+            evolucion: nuevaEvolucion,
             institucion: turnoInfo?.institucion || '',
           })
         })
         cargarHistoria()
       }
-    } catch(e) { alert('Error: ' + e.message) }
-    setProcesando(false)
+    } catch(e) {
+      alert('Error al actualizar: ' + e.message)
+    }
+    setActualizando(false)
+  }
+
+  async function analizarImagen(archivo) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = async (e) => {
+        try {
+          const base64 = e.target.result.split(',')[1]
+          const mimeType = archivo.type || 'image/jpeg'
+
+          const res = await fetch(`${API}/posta/analizar-imagen`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              imagen_base64: base64,
+              mime_type: mimeType,
+              nombre: paciente.nombre,
+              edad: paciente.edad,
+              dx: paciente.dx,
+            })
+          })
+
+          const data = await res.json()
+          resolve(data.hallazgo || '')
+        } catch(e) {
+          reject(e)
+        }
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(archivo)
+    })
+  }
+
+  async function handleImagen(e) {
+    const archivo = e.target.files?.[0]
+    if (!archivo) return
+    setSubiendoImagen(true)
+    try {
+      const hallazgo = await analizarImagen(archivo)
+      if (hallazgo) await actualizarEvolucion(hallazgo)
+    } catch(err) {
+      alert('Error al analizar imagen: ' + err.message)
+    }
+    setSubiendoImagen(false)
+    e.target.value = ''
+  }
+
+  function abrirEditorPDF() {
+    if (!evolucionHoy) {
+      alert('Todavía no hay evolución de hoy para este paciente.')
+      return
+    }
+    try {
+      const texto = generarTextoPDFIndividual(
+        { ...paciente, evolucion: evolucionHoy },
+        turnoInfo || { institucion: '', servicio: '', turno: '' },
+        medico || { nombre: '', especialidad: '', matriculaProv: '', matriculaNac: '' }
+      )
+      setTextoPDF(texto)
+      setEditandoPDF(true)
+    } catch(e) {
+      alert('Error al generar PDF: ' + e.message)
+    }
+  }
+
+  function descargarPDF() {
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+    const margen = 15
+    const anchoUtil = 180
+    let y = 20
+
+    const addLinea = (texto, size = 10, bold = false) => {
+      doc.setFontSize(size)
+      doc.setFont('helvetica', bold ? 'bold' : 'normal')
+      const lineas = doc.splitTextToSize(texto, anchoUtil)
+      lineas.forEach(l => {
+        if (y > 270) { doc.addPage(); y = 20 }
+        doc.text(l, margen, y)
+        y += size * 0.45
+      })
+    }
+
+    const addSep = () => {
+      doc.setDrawColor(180, 180, 180)
+      doc.line(margen, y, margen + anchoUtil, y)
+      y += 5
+    }
+
+    textoPDF.split('\n').forEach(linea => {
+      const trimmed = linea.trim()
+      if (trimmed.match(/^─+$/)) {
+        addSep()
+      } else if (trimmed === trimmed.toUpperCase() && trimmed.length > 3 && !trimmed.startsWith('•')) {
+        y += 2
+        addLinea(trimmed, 10, true)
+        y += 2
+      } else {
+        addLinea(linea, 9, false)
+      }
+    })
+
+    const nombreArchivo = `POSTA_Cama${paciente.cama}_${paciente.nombre.replace(/,\s*/g, '_')}_${fechaHoy().replace(/\//g, '-')}.pdf`
+    doc.save(nombreArchivo)
+    setEditandoPDF(false)
   }
 
   async function egresarPaciente() {
@@ -1407,6 +1493,34 @@ function PantallaFichaServicio({ paciente, servicioId, medico, turnoInfo, onVolv
     { id: 'evolucion', label: 'Evolución hoy' },
     { id: 'consultar', label: 'Consultar' },
   ]
+
+  if (editandoPDF) {
+    return (
+      <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ background: S.verdeCard, padding: '12px 16px', borderBottom: `0.5px solid ${S.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button onClick={() => setEditandoPDF(false)} style={{ background: 'none', border: 'none', color: S.muted, fontSize: 24, cursor: 'pointer', padding: 0, lineHeight: 1 }}>‹</button>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: S.verde }}>Revisar evolución</div>
+            <div style={{ fontSize: 11, color: S.muted }}>Editá antes de descargar</div>
+          </div>
+        </div>
+        <div style={{ flex: 1, padding: 16 }}>
+          <div style={{ fontSize: 11, color: S.muted, marginBottom: 8 }}>Podés corregir cualquier dato antes de descargar.</div>
+          <textarea
+            value={textoPDF}
+            onChange={e => setTextoPDF(e.target.value)}
+            style={{ width: '100%', minHeight: 400, background: S.verdeCard, border: `0.5px solid rgba(82,183,136,0.2)`, borderRadius: 10, padding: 12, fontSize: 12, color: S.text, outline: 'none', lineHeight: 1.7, resize: 'vertical', fontFamily: 'monospace' }}
+          />
+        </div>
+        <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}`, display: 'flex', gap: 8 }}>
+          <button onClick={() => setEditandoPDF(false)} style={{ flex: 1, background: 'transparent', color: S.muted, border: `0.5px solid ${S.border}`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+          <button onClick={descargarPDF} style={{ flex: 2, background: S.verdeOsc, color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 11, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+            Descargar PDF →
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column' }}>
@@ -1479,7 +1593,7 @@ function PantallaFichaServicio({ paciente, servicioId, medico, turnoInfo, onVolv
                   )
                 })}
               </div>
-            ) : procesando ? (
+            ) : actualizando ? (
               <div style={{ textAlign: 'center', padding: '40px 0' }}>
                 <div style={{ fontSize: 32, marginBottom: 12 }}>⚕</div>
                 <div style={{ fontSize: 14, color: S.muted }}>Analizando el pase...</div>
@@ -1492,15 +1606,100 @@ function PantallaFichaServicio({ paciente, servicioId, medico, turnoInfo, onVolv
               </div>
             )}
           </div>
-          <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}` }}>
-            <button onClick={grabando ? finalizarGrabacion : iniciarGrabacion}
+
+          <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+
+            {(actualizando || subiendoImagen) && (
+              <div style={{ textAlign: 'center', padding: '8px 0', fontSize: 12, color: S.muted, fontStyle: 'italic' }}>
+                {subiendoImagen ? '📷 Analizando imagen...' : 'Actualizando evolución...'}
+              </div>
+            )}
+
+            <input
+              ref={inputImagenRef}
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={handleImagen}
+              style={{ display: 'none' }}
+            />
+
+            <button
+              onClick={grabando ? async () => {
+                if (!mediaRef.current) return
+                mediaRef.current.stop()
+                mediaRef.current.stream.getTracks().forEach(t => t.stop())
+                setGrabando(false)
+                await new Promise(r => setTimeout(r, 800))
+                const mimeType = chunksRef.current[0]?.type || 'audio/webm'
+                const blob = new Blob(chunksRef.current, { type: mimeType })
+                if (blob.size < 500) return
+                const fd = new FormData()
+                fd.append('audio', blob, mimeType.includes('mp4') ? 'pase.mp4' : 'pase.webm')
+                fd.append('turno_id', turnoId.current)
+                fd.append('cama', paciente.cama)
+                fd.append('nombre', paciente.nombre)
+                fd.append('dni', paciente.dni || '')
+                fd.append('edad', paciente.edad || '')
+                fd.append('dx', paciente.dx || '')
+                fd.append('rol', 'medico')
+                try {
+                  const resAudio = await fetch(`${API}/posta/audio`, { method: 'POST', body: fd })
+                  const audioData = await resAudio.json()
+                  if (audioData.transcripcion) await actualizarEvolucion(audioData.transcripcion)
+                } catch(e) { alert('Error: ' + e.message) }
+              } : async () => {
+                try {
+                  const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+                  const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/mp4'
+                  const mr = new MediaRecorder(stream, { mimeType })
+                  chunksRef.current = []
+                  mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+                  mr.start(500)
+                  mediaRef.current = mr
+                  setGrabando(true)
+                } catch(e) { alert('Error micrófono: ' + e.message) }
+              }}
               style={{ width: '100%', background: grabando ? 'rgba(239,68,68,0.06)' : S.verdeCard, border: `0.5px solid ${grabando ? 'rgba(239,68,68,0.4)' : 'rgba(82,183,136,0.2)'}`, borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
               <div style={{ width: 40, height: 40, borderRadius: '50%', background: grabando ? 'rgba(239,68,68,0.15)' : 'rgba(82,183,136,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🎙</div>
               <div style={{ textAlign: 'left' }}>
-                <div style={{ fontSize: 13, fontWeight: 500, color: grabando ? S.rojo : S.text }}>{grabando ? 'Grabando... tocá para finalizar' : 'Te escucho, hagamos esta guardia más ligera'}</div>
-                <div style={{ fontSize: 11, color: S.muted, marginTop: 2 }}>{grabando ? 'Hablá con normalidad' : 'Tocá para grabar el pase'}</div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: grabando ? S.rojo : S.text }}>
+                  {grabando ? 'Grabando... tocá para procesar' : 'Te escucho, hagamos esta guardia más ligera'}
+                </div>
+                <div style={{ fontSize: 11, color: S.muted, marginTop: 2 }}>
+                  {grabando ? 'Hablá con normalidad' : 'Tocá para actualizar por audio'}
+                </div>
               </div>
             </button>
+
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button
+                onClick={() => inputImagenRef.current?.click()}
+                disabled={subiendoImagen || actualizando}
+                title="Subir imagen clínica"
+                style={{ width: 36, height: 36, borderRadius: 8, background: subiendoImagen ? 'rgba(82,183,136,0.2)' : S.verdeCard, border: `0.5px solid rgba(82,183,136,0.2)`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, fontSize: 18 }}>
+                {subiendoImagen ? '⏳' : '📷'}
+              </button>
+              <input
+                value={inputTexto}
+                onChange={e => setInputTexto(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && inputTexto.trim() && actualizarEvolucion(inputTexto).then(() => setInputTexto(''))}
+                placeholder="O escribí nueva información aquí..."
+                style={{ flex: 1, background: S.verdeCard, border: `0.5px solid ${S.border}`, borderRadius: 8, padding: '9px 12px', fontSize: 13, color: S.text, outline: 'none' }}
+              />
+              <button
+                onClick={() => { if (inputTexto.trim()) actualizarEvolucion(inputTexto).then(() => setInputTexto('')) }}
+                disabled={!inputTexto.trim() || actualizando}
+                style={{ width: 36, height: 36, borderRadius: '50%', background: S.verdeOsc, border: 'none', color: S.verde, cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>
+                ↑
+              </button>
+            </div>
+
+            {evolucionHoy && (
+              <button onClick={abrirEditorPDF} style={{ width: '100%', background: 'transparent', color: S.verde, border: `0.5px solid rgba(82,183,136,0.3)`, borderRadius: 10, padding: 11, fontSize: 13, cursor: 'pointer' }}>
+                Descargar PDF
+              </button>
+            )}
+
           </div>
         </>
       )}
