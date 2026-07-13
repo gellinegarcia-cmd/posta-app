@@ -570,7 +570,7 @@ ${sep}`
 }
 
 function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVolver, onSiguiente, onActualizarPaciente, servicioId, historiaPrevia }) {
-  const turnoIdHoy = `${paciente.id}_${new Date().toLocaleDateString('es-AR').replace(/\//g,'-')}`
+  const turnoIdHoy = `${paciente.id_paciente || paciente.id}_${new Date().toLocaleDateString('es-AR').replace(/\//g,'-')}`
   const claveEvolucionHoy = `posta_evolucion_${turnoIdHoy}`
   const [editandoPDF, setEditandoPDF] = useState(false)
   const [textoPDF, setTextoPDF] = useState('')
