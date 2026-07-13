@@ -1306,11 +1306,15 @@ ${historia?.evoluciones?.map(e => `[${e.fecha}] ${e.medico}: ${e.evolucion?.subs
 }
 
 function PantallaFichaServicio({ paciente, servicioId, medico, turnoInfo, onVolver }) {
+  const turnoIdHoy = `srv_${paciente.id_paciente}_${new Date().toLocaleDateString('es-AR').replace(/\//g,'-')}`
+  const claveEvolucionHoy = `posta_evo_srv_${turnoIdHoy}`
   const [historia, setHistoria] = useState(null)
   const [cargando, setCargando] = useState(true)
   const [grabando, setGrabando] = useState(false)
   const [actualizando, setActualizando] = useState(false)
-  const [evolucionHoy, setEvolucionHoy] = useState(null)
+  const [evolucionHoy, setEvolucionHoy] = useState(() => {
+    try { return localStorage.getItem(claveEvolucionHoy) || null } catch { return null }
+  })
   const [inputTexto, setInputTexto] = useState('')
   const [subiendoImagen, setSubiendoImagen] = useState(false)
   const [editandoPDF, setEditandoPDF] = useState(false)
@@ -1354,6 +1358,7 @@ function PantallaFichaServicio({ paciente, servicioId, medico, turnoInfo, onVolv
       if (data.respuesta) {
         const nuevaEvolucion = data.respuesta
         setEvolucionHoy(nuevaEvolucion)
+        localStorage.setItem(claveEvolucionHoy, nuevaEvolucion)
         await fetch(`${API}/posta/evolucion/guardar`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
