@@ -580,6 +580,10 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVo
   const [actualizando, setActualizando] = useState(false)
   const [subiendoImagen, setSubiendoImagen] = useState(false)
   const [mostrarEgreso, setMostrarEgreso] = useState(false)
+  const [alertas, setAlertas] = useState([])
+  const [nuevaAlerta, setNuevaAlerta] = useState('')
+  const [fechaAlerta, setFechaAlerta] = useState('')
+  const [cargandoAlertas, setCargandoAlertas] = useState(false)
   const inputImagenRef = useRef(null)
   const [mensajes, setMensajes] = useState(() => {
     try {
@@ -631,6 +635,49 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVo
       .catch(() => {})
   }, [])
 
+  const idPacienteReal = paciente.id_paciente || paciente.id
+
+  async function cargarAlertas() {
+    try {
+      const res = await fetch(`${API}/posta/alertas/${idPacienteReal}`)
+      if (res.ok) {
+        const data = await res.json()
+        setAlertas(data.alertas || [])
+      }
+    } catch {}
+  }
+
+  async function crearAlerta(texto, tipo = 'manual', fechaRec = '') {
+    if (!texto.trim()) return
+    try {
+      await fetch(`${API}/posta/alerta/crear`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id_paciente: idPacienteReal,
+          servicio_id: servicioId || '',
+          texto: texto.trim(),
+          tipo,
+          fecha_recordatorio: fechaRec,
+          medico: medico?.nombre || '',
+          turno_id: turnoIdHoy,
+        })
+      })
+      setNuevaAlerta('')
+      setFechaAlerta('')
+      await cargarAlertas()
+    } catch(e) { alert('Error al crear alerta') }
+  }
+
+  async function cumplirAlerta(alertaId) {
+    try {
+      await fetch(`${API}/posta/alerta/${alertaId}/cumplir`, { method: 'POST' })
+      setAlertas(prev => prev.filter(a => a.id !== alertaId))
+    } catch {}
+  }
+
+  useEffect(() => { cargarAlertas() }, [idPacienteReal])
+
   async function actualizarEvolucion(nuevoContexto) {
     if (!nuevoContexto.trim()) return
     setActualizando(true)
@@ -650,6 +697,36 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVo
       if (data.respuesta) {
         const nuevaEvolucion = data.respuesta
         setEvolucionHoy(nuevaEvolucion)
+
+        const resAlertas = await fetch(`${API}/posta/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pregunta: `Analizá esta evolución clínica y detectá SOLO las acciones pendientes explícitas que el médico mencionó que hay que hacer más tarde, esta noche, mañana o en las próximas horas. Ejemplos: "repetir gas en la noche", "rx control post-vía", "repetir troponina en 6 hs", "bajar PEEP más tarde".
+
+Respondé SOLO con un JSON array con este formato exacto, sin texto adicional:
+[{"texto": "descripción corta de la acción", "fecha_recordatorio": "YYYY-MM-DD HH:MM o vacío si es hoy"}]
+
+Si no hay acciones pendientes claras respondé: []
+
+EVOLUCIÓN: ${nuevaEvolucion}`,
+            contexto_paciente: `Paciente: ${paciente.nombre}, Cama ${paciente.cama}`,
+            historial: [],
+          })
+        })
+        const dataAlertas = await resAlertas.json()
+        if (dataAlertas.respuesta) {
+          try {
+            const texto = dataAlertas.respuesta.replace(/```json|```/g, '').trim()
+            const alertasDetectadas = JSON.parse(texto)
+            if (Array.isArray(alertasDetectadas) && alertasDetectadas.length > 0) {
+              for (const alerta of alertasDetectadas) {
+                await crearAlerta(alerta.texto, 'automatica', alerta.fecha_recordatorio || '')
+              }
+            }
+          } catch {}
+        }
+
         localStorage.setItem(claveEvolucionHoy, nuevaEvolucion)
 
         if (servicioId) {
@@ -944,6 +1021,60 @@ Respondé siempre en el contexto de este paciente específico. Sé preciso y cer
                 </div>
               </div>
             ))}
+
+            {(alertas.length > 0 || true) && (
+              <div style={{ marginTop: 16, marginBottom: 8 }}>
+                <div style={{ fontSize: 10, fontWeight: 500, color: S.amber, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8, paddingLeft: 8, borderLeft: `2px solid ${S.amber}` }}>
+                  Alertas y recordatorios
+                </div>
+
+                {alertas.length === 0 && (
+                  <div style={{ fontSize: 12, color: S.muted, fontStyle: 'italic', marginBottom: 8 }}>Sin alertas activas</div>
+                )}
+
+                {alertas.map(a => (
+                  <div key={a.id} style={{ background: 'rgba(186,117,23,0.08)', border: `0.5px solid rgba(186,117,23,0.25)`, borderRadius: 8, padding: '8px 12px', marginBottom: 6, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, color: '#E8C870', lineHeight: 1.5 }}>{a.texto}</div>
+                      {a.fecha_recordatorio && (
+                        <div style={{ fontSize: 10, color: S.muted, marginTop: 3 }}>
+                          ⏰ {a.fecha_recordatorio}
+                        </div>
+                      )}
+                      {a.tipo === 'automatica' && (
+                        <div style={{ fontSize: 10, color: S.muted, marginTop: 2 }}>Detectada por POSTA</div>
+                      )}
+                    </div>
+                    <button onClick={() => cumplirAlerta(a.id)} style={{ background: 'rgba(82,183,136,0.1)', border: `0.5px solid rgba(82,183,136,0.2)`, borderRadius: 6, padding: '4px 10px', fontSize: 11, color: S.verde, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                      ✓ Cumplida
+                    </button>
+                  </div>
+                ))}
+
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <input
+                    value={nuevaAlerta}
+                    onChange={e => setNuevaAlerta(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && crearAlerta(nuevaAlerta, 'manual', fechaAlerta)}
+                    placeholder="Agregar recordatorio..."
+                    style={{ flex: 1, background: S.verdeCard, border: `0.5px solid rgba(186,117,23,0.2)`, borderRadius: 8, padding: '8px 12px', fontSize: 12, color: S.text, outline: 'none' }}
+                  />
+                  <input
+                    type="datetime-local"
+                    value={fechaAlerta}
+                    onChange={e => setFechaAlerta(e.target.value)}
+                    style={{ width: 44, background: S.verdeCard, border: `0.5px solid rgba(186,117,23,0.2)`, borderRadius: 8, padding: '8px 6px', fontSize: 11, color: S.muted, outline: 'none', cursor: 'pointer' }}
+                    title="Fecha y hora del recordatorio"
+                  />
+                  <button
+                    onClick={() => crearAlerta(nuevaAlerta, 'manual', fechaAlerta)}
+                    disabled={!nuevaAlerta.trim()}
+                    style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(186,117,23,0.2)', border: `0.5px solid rgba(186,117,23,0.3)`, color: S.amber, cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>
+                    +
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1192,10 +1323,26 @@ function PanelServicio({ servicioId, medico, turnoInfo, onSeleccionarPaciente, o
   const [pacientes, setPacientes] = useState([])
   const [cargando, setCargando] = useState(true)
   const [mostrarQR, setMostrarQR] = useState(false)
+  const [alertasPendientes, setAlertasPendientes] = useState(0)
 
   useEffect(() => {
     cargarPacientes()
     const interval = setInterval(cargarPacientes, 30000)
+    return () => clearInterval(interval)
+  }, [servicioId])
+
+  useEffect(() => {
+    async function cargarAlertasPendientes() {
+      try {
+        const res = await fetch(`${API}/posta/alertas/servicio/${servicioId}/hoy`)
+        if (res.ok) {
+          const data = await res.json()
+          setAlertasPendientes(data.total || 0)
+        }
+      } catch {}
+    }
+    cargarAlertasPendientes()
+    const interval = setInterval(cargarAlertasPendientes, 60000)
     return () => clearInterval(interval)
   }, [servicioId])
 
@@ -1223,6 +1370,11 @@ function PanelServicio({ servicioId, medico, turnoInfo, onSeleccionarPaciente, o
           <button onClick={() => setMostrarQR(true)} style={{ background: 'rgba(82,183,136,0.12)', border: `0.5px solid rgba(82,183,136,0.2)`, borderRadius: 8, padding: '6px 12px', color: S.verde, fontSize: 12, cursor: 'pointer' }}>
             QR pase →
           </button>
+          {alertasPendientes > 0 && (
+            <div style={{ background: 'rgba(186,117,23,0.15)', border: `0.5px solid rgba(186,117,23,0.3)`, borderRadius: 8, padding: '6px 12px', color: S.amber, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+              ⚠ {alertasPendientes} {alertasPendientes === 1 ? 'alerta' : 'alertas'}
+            </div>
+          )}
         </div>
         <div style={{ fontSize: 11, color: S.muted, paddingLeft: 34 }}>{servicioId} · {turnoInfo?.institucion}</div>
         <div style={{ fontSize: 11, color: S.muted, paddingLeft: 34 }}>{pacientes.length} pacientes activos · Turno {turnoInfo?.turno}</div>
