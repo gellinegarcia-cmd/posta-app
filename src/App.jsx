@@ -903,7 +903,7 @@ EVOLUCIÓN: ${nuevaEvolucion}`,
     setMensajes(nuevos)
     setLoadingChat(true)
     try {
-      const res = await fetch(`${API}/posta/chat`, {
+      const res = await fetch(`${API}/posta/consultar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
