@@ -908,8 +908,7 @@ EVOLUCIÓN: ${nuevaEvolucion}`,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           pregunta: texto,
-          contexto_paciente: `Sos el asistente clínico POSTA. Conocés todo sobre este paciente y su guardia de hoy.
-DATOS DEL PACIENTE:
+          contexto_paciente: `DATOS DEL PACIENTE:
 - Nombre: ${paciente.nombre}
 - Edad: ${paciente.edad} años
 - DNI: ${paciente.dni}
@@ -918,10 +917,16 @@ DATOS DEL PACIENTE:
 - Servicio: ${turnoInfo?.servicio || ''}
 - Institución: ${turnoInfo?.institucion || ''}
 
-CONTEXTO DEL PASE DE HOY:
-${contextoCompleto}
+EVOLUCIÓN DE HOY:
+${evolucionHoy || 'Sin evolución registrada aún'}
 
-Respondé siempre en el contexto de este paciente específico. Sé preciso y cercano.`,
+HISTORIA CLÍNICA PREVIA:
+${historiaPrevia && historiaPrevia.length > 0
+  ? historiaPrevia.map(e => `[${e.fecha?.split(' ')[0]} · Turno ${e.turno} · ${e.medico}]\n${e.evolucion?.split('---EVOLUCIÓN PARA HISTORIA CLÍNICA---')[1]?.trim() || e.evolucion?.substring(0, 300)}`).join('\n\n')
+  : 'Sin evoluciones previas registradas en POSTA'}
+
+CONTEXTO DEL PASE ACTUAL:
+${contextoCompleto || ''}`,
           historial: nuevos.slice(-8),
         })
       })
