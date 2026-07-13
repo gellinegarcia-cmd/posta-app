@@ -936,6 +936,7 @@ Respondé siempre en el contexto de este paciente específico. Sé preciso y cer
   const TABS = [
     { id: 'evolucion', label: 'Evolución hoy' },
     { id: 'historia', label: 'Historia clínica' },
+    { id: 'alertas', label: 'Alertas' },
     { id: 'consultar', label: 'Consultar' },
   ]
 
@@ -1021,60 +1022,6 @@ Respondé siempre en el contexto de este paciente específico. Sé preciso y cer
                 </div>
               </div>
             ))}
-
-            {(alertas.length > 0 || true) && (
-              <div style={{ marginTop: 16, marginBottom: 8 }}>
-                <div style={{ fontSize: 10, fontWeight: 500, color: S.amber, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8, paddingLeft: 8, borderLeft: `2px solid ${S.amber}` }}>
-                  Alertas y recordatorios
-                </div>
-
-                {alertas.length === 0 && (
-                  <div style={{ fontSize: 12, color: S.muted, fontStyle: 'italic', marginBottom: 8 }}>Sin alertas activas</div>
-                )}
-
-                {alertas.map(a => (
-                  <div key={a.id} style={{ background: 'rgba(186,117,23,0.08)', border: `0.5px solid rgba(186,117,23,0.25)`, borderRadius: 8, padding: '8px 12px', marginBottom: 6, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, color: '#E8C870', lineHeight: 1.5 }}>{a.texto}</div>
-                      {a.fecha_recordatorio && (
-                        <div style={{ fontSize: 10, color: S.muted, marginTop: 3 }}>
-                          ⏰ {a.fecha_recordatorio}
-                        </div>
-                      )}
-                      {a.tipo === 'automatica' && (
-                        <div style={{ fontSize: 10, color: S.muted, marginTop: 2 }}>Detectada por POSTA</div>
-                      )}
-                    </div>
-                    <button onClick={() => cumplirAlerta(a.id)} style={{ background: 'rgba(82,183,136,0.1)', border: `0.5px solid rgba(82,183,136,0.2)`, borderRadius: 6, padding: '4px 10px', fontSize: 11, color: S.verde, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}>
-                      ✓ Cumplida
-                    </button>
-                  </div>
-                ))}
-
-                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                  <input
-                    value={nuevaAlerta}
-                    onChange={e => setNuevaAlerta(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && crearAlerta(nuevaAlerta, 'manual', fechaAlerta)}
-                    placeholder="Agregar recordatorio..."
-                    style={{ flex: 1, background: S.verdeCard, border: `0.5px solid rgba(186,117,23,0.2)`, borderRadius: 8, padding: '8px 12px', fontSize: 12, color: S.text, outline: 'none' }}
-                  />
-                  <input
-                    type="datetime-local"
-                    value={fechaAlerta}
-                    onChange={e => setFechaAlerta(e.target.value)}
-                    style={{ width: 44, background: S.verdeCard, border: `0.5px solid rgba(186,117,23,0.2)`, borderRadius: 8, padding: '8px 6px', fontSize: 11, color: S.muted, outline: 'none', cursor: 'pointer' }}
-                    title="Fecha y hora del recordatorio"
-                  />
-                  <button
-                    onClick={() => crearAlerta(nuevaAlerta, 'manual', fechaAlerta)}
-                    disabled={!nuevaAlerta.trim()}
-                    style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(186,117,23,0.2)', border: `0.5px solid rgba(186,117,23,0.3)`, color: S.amber, cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>
-                    +
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
 
           <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1203,6 +1150,59 @@ Respondé siempre en el contexto de este paciente específico. Sé preciso y cer
         </div>
       )}
 
+      {tab === 'alertas' && (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, padding: '14px 16px', overflowY: 'auto' }}>
+            {alertas.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '32px 0' }}>
+                <div style={{ fontSize: 32, marginBottom: 12 }}>✓</div>
+                <div style={{ fontSize: 14, color: S.text, fontWeight: 500, marginBottom: 6 }}>Sin alertas activas</div>
+                <div style={{ fontSize: 12, color: S.muted }}>POSTA detecta automáticamente o agregá una manual.</div>
+              </div>
+            ) : alertas.map(a => (
+              <div key={a.id} style={{ background: 'rgba(186,117,23,0.08)', border: `0.5px solid rgba(186,117,23,0.25)`, borderRadius: 8, padding: '10px 12px', marginBottom: 8, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, color: '#E8C870', lineHeight: 1.5 }}>{a.texto}</div>
+                  {a.fecha_recordatorio && (
+                    <div style={{ fontSize: 10, color: S.muted, marginTop: 3 }}>⏰ {a.fecha_recordatorio}</div>
+                  )}
+                  {a.tipo === 'automatica' && (
+                    <div style={{ fontSize: 10, color: S.muted, marginTop: 2 }}>Detectada por POSTA</div>
+                  )}
+                </div>
+                <button onClick={() => cumplirAlerta(a.id)} style={{ background: 'rgba(82,183,136,0.1)', border: `0.5px solid rgba(82,183,136,0.2)`, borderRadius: 6, padding: '4px 10px', fontSize: 11, color: S.verde, cursor: 'pointer', flexShrink: 0 }}>
+                  ✓
+                </button>
+              </div>
+            ))}
+          </div>
+          <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}` }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                value={nuevaAlerta}
+                onChange={e => setNuevaAlerta(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && crearAlerta(nuevaAlerta, 'manual', fechaAlerta)}
+                placeholder="Agregar recordatorio..."
+                style={{ flex: 1, background: S.verdeCard, border: `0.5px solid rgba(186,117,23,0.2)`, borderRadius: 8, padding: '9px 12px', fontSize: 13, color: S.text, outline: 'none' }}
+              />
+              <input
+                type="datetime-local"
+                value={fechaAlerta}
+                onChange={e => setFechaAlerta(e.target.value)}
+                style={{ width: 44, background: S.verdeCard, border: `0.5px solid rgba(186,117,23,0.2)`, borderRadius: 8, padding: '8px 6px', fontSize: 11, color: S.muted, outline: 'none', cursor: 'pointer' }}
+                title="Fecha y hora del recordatorio"
+              />
+              <button
+                onClick={() => crearAlerta(nuevaAlerta, 'manual', fechaAlerta)}
+                disabled={!nuevaAlerta.trim()}
+                style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(186,117,23,0.2)', border: `0.5px solid rgba(186,117,23,0.3)`, color: S.amber, cursor: 'pointer', fontSize: 18, flexShrink: 0 }}>
+                +
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {tab === 'consultar' && (
         <>
           <div style={{ flex: 1, padding: '14px 16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1324,6 +1324,8 @@ function PanelServicio({ servicioId, medico, turnoInfo, onSeleccionarPaciente, o
   const [cargando, setCargando] = useState(true)
   const [mostrarQR, setMostrarQR] = useState(false)
   const [alertasPendientes, setAlertasPendientes] = useState(0)
+  const [acordeonAbierto, setAcordeonAbierto] = useState(null)
+  const [alertasPorPaciente, setAlertasPorPaciente] = useState({})
 
   useEffect(() => {
     cargarPacientes()
@@ -1355,6 +1357,34 @@ function PanelServicio({ servicioId, medico, turnoInfo, onSeleccionarPaciente, o
       }
     } catch {}
     setCargando(false)
+  }
+
+  async function toggleAcordeon(idPaciente) {
+    if (acordeonAbierto === idPaciente) {
+      setAcordeonAbierto(null)
+      return
+    }
+    setAcordeonAbierto(idPaciente)
+    if (!alertasPorPaciente[idPaciente]) {
+      try {
+        const res = await fetch(`${API}/posta/alertas/${idPaciente}`)
+        if (res.ok) {
+          const data = await res.json()
+          setAlertasPorPaciente(prev => ({ ...prev, [idPaciente]: data.alertas || [] }))
+        }
+      } catch {}
+    }
+  }
+
+  async function cumplirAlertaPanel(alertaId, idPaciente) {
+    try {
+      await fetch(`${API}/posta/alerta/${alertaId}/cumplir`, { method: 'POST' })
+      setAlertasPorPaciente(prev => ({
+        ...prev,
+        [idPaciente]: (prev[idPaciente] || []).filter(a => a.id !== alertaId)
+      }))
+      setAlertasPendientes(prev => Math.max(0, prev - 1))
+    } catch {}
   }
 
   const qrUrl = QR_CDN + encodeURIComponent(urlServicio(servicioId))
@@ -1390,20 +1420,58 @@ function PanelServicio({ servicioId, medico, turnoInfo, onSeleccionarPaciente, o
             No hay pacientes activos.<br />Tocá + para ingresar el primero.
           </div>
         ) : pacientes.map(p => (
-          <button key={p.id_paciente} onClick={() => onSeleccionarPaciente(p)}
-            style={{ width: '100%', background: S.verdeCard, border: `0.5px solid ${S.border}`, borderRadius: 10, padding: '11px 13px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left', marginBottom: 8 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(82,183,136,0.12)', color: S.verde, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
-              {p.cama}
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 500, color: S.text, marginBottom: 2 }}>{p.nombre}</div>
-              <div style={{ fontSize: 11, color: S.muted }}>{p.dx}</div>
-            </div>
-            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <div style={{ fontSize: 10, color: S.verde }}>{p.total_evoluciones} evoluciones</div>
-              {p.ultimo_medico && <div style={{ fontSize: 10, color: S.muted }}>{p.ultimo_medico}</div>}
-            </div>
-          </button>
+          <div key={p.id_paciente} style={{ marginBottom: 8 }}>
+            <button
+              onClick={() => onSeleccionarPaciente(p)}
+              style={{ width: '100%', background: S.verdeCard, border: `0.5px solid ${S.border}`, borderRadius: acordeonAbierto === p.id_paciente ? '10px 10px 0 0' : 10, padding: '11px 13px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left' }}>
+              <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(82,183,136,0.12)', color: S.verde, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
+                {p.cama}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: S.text, marginBottom: 2 }}>{p.nombre}</div>
+                <div style={{ fontSize: 11, color: S.muted }}>{p.dx}</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                {p.total_evoluciones > 0 && (
+                  <span style={{ fontSize: 10, color: S.verde }}>
+                    {p.total_evoluciones} ev.
+                  </span>
+                )}
+                {alertasPendientes > 0 && (
+                  <span style={{ fontSize: 10, color: S.amber, background: 'rgba(186,117,23,0.1)', padding: '2px 6px', borderRadius: 99, border: `0.5px solid rgba(186,117,23,0.2)` }}>
+                    ⚠
+                  </span>
+                )}
+                <button
+                  onClick={e => { e.stopPropagation(); toggleAcordeon(p.id_paciente) }}
+                  style={{ background: 'none', border: 'none', color: S.muted, fontSize: 16, cursor: 'pointer', padding: '0 4px', lineHeight: 1, transform: acordeonAbierto === p.id_paciente ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>
+                  ›
+                </button>
+              </div>
+            </button>
+
+            {acordeonAbierto === p.id_paciente && (
+              <div style={{ background: 'rgba(186,117,23,0.04)', border: `0.5px solid rgba(186,117,23,0.2)`, borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '10px 13px' }}>
+                {!alertasPorPaciente[p.id_paciente] ? (
+                  <div style={{ fontSize: 12, color: S.muted, fontStyle: 'italic' }}>Cargando alertas...</div>
+                ) : alertasPorPaciente[p.id_paciente].length === 0 ? (
+                  <div style={{ fontSize: 12, color: S.muted }}>Sin alertas activas para este paciente.</div>
+                ) : alertasPorPaciente[p.id_paciente].map(a => (
+                  <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, color: '#E8C870', flex: 1, lineHeight: 1.4 }}>⚠ {a.texto}</span>
+                    {a.fecha_recordatorio && (
+                      <span style={{ fontSize: 10, color: S.muted, flexShrink: 0 }}>⏰ {a.fecha_recordatorio?.split('T')[0]}</span>
+                    )}
+                    <button
+                      onClick={() => cumplirAlertaPanel(a.id, p.id_paciente)}
+                      style={{ background: 'rgba(82,183,136,0.1)', border: `0.5px solid rgba(82,183,136,0.2)`, borderRadius: 6, padding: '3px 8px', fontSize: 11, color: S.verde, cursor: 'pointer', flexShrink: 0 }}>
+                      ✓
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         ))}
 
         <div style={{ height: '0.5px', background: 'rgba(82,183,136,0.1)', margin: '12px 0' }} />
