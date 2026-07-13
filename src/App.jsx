@@ -750,11 +750,39 @@ EVOLUCIÓN: ${nuevaEvolucion}`,
           onActualizarPaciente(pacienteActualizado)
           localStorage.setItem('posta_paciente_actual', JSON.stringify(pacienteActualizado))
         }
+
+        await generarYGuardarResumen(nuevaEvolucion)
       }
     } catch(e) {
       alert('Error al actualizar: ' + e.message)
     }
     setActualizando(false)
+  }
+
+  async function generarYGuardarResumen(evolucion) {
+    try {
+      const res = await fetch(`${API}/posta/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pregunta: `Generá un resumen clínico MUY BREVE de este paciente para el médico del próximo turno. Máximo 3 líneas. Solo los puntos más importantes: estado actual, lo más relevante hecho hoy y lo más urgente pendiente. Sin títulos, sin bullets, texto corrido directo.`,
+          contexto_paciente: `Paciente: ${paciente.nombre}, ${paciente.edad} años, Cama ${paciente.cama}. Diagnóstico: ${paciente.dx}.\n\nEVOLUCIÓN ACTUAL:\n${evolucion}`,
+          historial: [],
+        })
+      })
+      const data = await res.json()
+      if (data.respuesta) {
+        await fetch(`${API}/posta/resumen/${idPacienteReal}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            resumen: data.respuesta,
+            servicio_id: servicioId || '',
+            medico: medico?.nombre || '',
+          })
+        })
+      }
+    } catch {}
   }
 
   async function analizarImagen(archivo) {
@@ -1326,6 +1354,7 @@ function PanelServicio({ servicioId, medico, turnoInfo, onSeleccionarPaciente, o
   const [alertasPendientes, setAlertasPendientes] = useState(0)
   const [acordeonAbierto, setAcordeonAbierto] = useState(null)
   const [alertasPorPaciente, setAlertasPorPaciente] = useState({})
+  const [resumenesPorPaciente, setResumenesPorPaciente] = useState({})
 
   useEffect(() => {
     cargarPacientes()
@@ -1371,6 +1400,17 @@ function PanelServicio({ servicioId, medico, turnoInfo, onSeleccionarPaciente, o
         if (res.ok) {
           const data = await res.json()
           setAlertasPorPaciente(prev => ({ ...prev, [idPaciente]: data.alertas || [] }))
+        }
+      } catch {}
+    }
+    if (!resumenesPorPaciente[idPaciente]) {
+      try {
+        const resRes = await fetch(`${API}/posta/resumen/${idPaciente}`)
+        if (resRes.ok) {
+          const resData = await resRes.json()
+          if (resData.resumen) {
+            setResumenesPorPaciente(prev => ({ ...prev, [idPaciente]: resData }))
+          }
         }
       } catch {}
     }
@@ -1452,10 +1492,21 @@ function PanelServicio({ servicioId, medico, turnoInfo, onSeleccionarPaciente, o
 
             {acordeonAbierto === p.id_paciente && (
               <div style={{ background: 'rgba(186,117,23,0.04)', border: `0.5px solid rgba(186,117,23,0.2)`, borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '10px 13px' }}>
+                {resumenesPorPaciente[p.id_paciente]?.resumen && (
+                  <div style={{ marginBottom: 10, paddingBottom: 10, borderBottom: `0.5px solid rgba(82,183,136,0.1)` }}>
+                    <div style={{ fontSize: 10, color: S.verde, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 5, fontWeight: 500 }}>
+                      📋 Resumen · {resumenesPorPaciente[p.id_paciente]?.ultima_actualizacion?.split(' ')[1]?.substring(0,5) || 'hoy'}
+                    </div>
+                    <div style={{ fontSize: 12, color: S.text, lineHeight: 1.6 }}>
+                      {resumenesPorPaciente[p.id_paciente].resumen}
+                    </div>
+                  </div>
+                )}
+
                 {!alertasPorPaciente[p.id_paciente] ? (
-                  <div style={{ fontSize: 12, color: S.muted, fontStyle: 'italic' }}>Cargando alertas...</div>
-                ) : alertasPorPaciente[p.id_paciente].length === 0 ? (
-                  <div style={{ fontSize: 12, color: S.muted }}>Sin alertas activas para este paciente.</div>
+                  <div style={{ fontSize: 12, color: S.muted, fontStyle: 'italic' }}>Cargando...</div>
+                ) : alertasPorPaciente[p.id_paciente].length === 0 && !resumenesPorPaciente[p.id_paciente]?.resumen ? (
+                  <div style={{ fontSize: 12, color: S.muted }}>Sin novedades para este paciente.</div>
                 ) : alertasPorPaciente[p.id_paciente].map(a => (
                   <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                     <span style={{ fontSize: 12, color: '#E8C870', flex: 1, lineHeight: 1.4 }}>⚠ {a.texto}</span>
