@@ -470,24 +470,6 @@ function PantallaPase({ paciente, rol, turnoId, onFinalizar, onCancelar }) {
 
 function generarTextoPDFIndividual(paciente, turnoInfo, medico) {
   const evolucion = paciente.evolucion || ''
-  const partes = evolucion.split('---EVOLUCIÓN PARA HISTORIA CLÍNICA---')
-  const seccionesRaw = partes[0] || ''
-
-  const getSec = (titulo) => {
-    const regex = new RegExp(`###\\s*${titulo}\\s*\\n([\\s\\S]*?)(?=###|---EVOLUCIÓN|$)`, 'i')
-    const match = seccionesRaw.match(regex)
-    if (!match) return ''
-    return match[1].trim().split('\n').filter(l => l.trim())
-      .map(l => '  • ' + l.replace(/^[-•*]\s*/, '').replace(/\*\*/g, '').trim())
-      .join('\n')
-  }
-
-  const situacion = getSec('Situación actual')
-  const evolucionDia = getSec('Evolución del día')
-  const conducta = getSec('Conducta / Plan')
-  const medicacion = getSec('Medicación')
-  const urgente = getSec('Urgente hoy')
-  const pendiente = getSec('Pendiente próximos días')
   const sep = '─'.repeat(48)
 
   let contenido = `EVOLUCIÓN MÉDICA
@@ -500,12 +482,7 @@ Edad / DNI  : ${paciente.edad} años · DNI ${paciente.dni}
 Diagnóstico : ${paciente.dx}
 ${sep}
 `
-  if (situacion) contenido += `\nDIAGNÓSTICO / SITUACIÓN ACTUAL\n${situacion}\n`
-  if (evolucionDia) contenido += `\nEVOLUCIÓN DEL DÍA\n${evolucionDia}\n`
-  if (conducta) contenido += `\nAL PIE DE CAMA / CONDUCTA\n${conducta}\n`
-  if (medicacion) contenido += `\nINDICACIONES\n${medicacion}\n`
-  if (urgente) contenido += `\nURGENTE HOY\n${urgente}\n`
-  if (pendiente) contenido += `\nPENDIENTE\n${pendiente}\n`
+  if (evolucion) contenido += `\nEVOLUCIÓN\n${evolucion}\n`
 
   contenido += `
 ${sep}
@@ -524,32 +501,11 @@ function generarTextoPDFTurno(pacientes, turnoInfo, medico) {
 
   const resumen = pasados.map(p => {
     const evolucion = p.evolucion || ''
-    const partes = evolucion.split('---EVOLUCIÓN PARA HISTORIA CLÍNICA---')
-    const seccionesRaw = partes[0] || ''
-
-    const getSec = (titulo) => {
-      const regex = new RegExp(`###\\s*${titulo}\\s*\\n([\\s\\S]*?)(?=###|---EVOLUCIÓN|$)`, 'i')
-      const match = seccionesRaw.match(regex)
-      if (!match) return ''
-      return match[1].trim().split('\n').filter(l => l.trim())
-        .map(l => '  • ' + l.replace(/^[-•*]\s*/, '').replace(/\*\*/g, '').trim())
-        .join('\n')
-    }
-
-    const situacion = getSec('Situación actual')
-    const evolucionDia = getSec('Evolución del día')
-    const conducta = getSec('Conducta / Plan')
-    const urgente = getSec('Urgente hoy')
-    const pendiente = getSec('Pendiente próximos días')
 
     let bloque = `CAMA ${p.cama} · ${p.nombre} · ${p.edad} años · DNI ${p.dni}
 Diagnóstico: ${p.dx}
 `
-    if (situacion) bloque += `\nSITUACIÓN ACTUAL\n${situacion}\n`
-    if (evolucionDia) bloque += `\nEVOLUCIÓN DEL DÍA\n${evolucionDia}\n`
-    if (conducta) bloque += `\nCONDUCTA\n${conducta}\n`
-    if (urgente) bloque += `\nURGENTE HOY\n${urgente}\n`
-    if (pendiente) bloque += `\nPENDIENTE\n${pendiente}\n`
+    if (evolucion) bloque += `\nEVOLUCIÓN\n${evolucion}\n`
 
     return bloque
   }).join(`\n${sep}\n\n`)
@@ -611,26 +567,7 @@ function PantallaFichaPaciente({ paciente, rol, turnoId, turnoInfo, medico, onVo
   const mediaPaseRef = useRef(null)
   const chunksPaseRef = useRef([])
 
-  const evolucion = evolucionHoy || paciente.evolucion || ''
-  const partes = evolucion.split('---EVOLUCIÓN PARA HISTORIA CLÍNICA---')
-  const seccionesCli = partes[0] || ''
-  const textoHC = partes[1]?.trim() || ''
-
-  const secciones = seccionesCli.split('###').filter(s => s.trim()).map(s => {
-    const lineas = s.trim().split('\n')
-    return { titulo: lineas[0].trim(), contenido: lineas.slice(1).join('\n').trim() }
-  })
-
-  const colores = {
-    'Situación actual': S.verde,
-    'Evolución del día': '#60A5FA',
-    'Conducta / Plan': '#A78BFA',
-    'Estudios pendientes': S.amber,
-    'Medicación': '#74A98A',
-    'Urgente hoy': S.rojo,
-    'Pendiente próximos días': '#F97316',
-    'Alerta POSTA': S.amber,
-  }
+  const textoHC = evolucionHoy || ''
 
   useEffect(() => {
     fetch(`${API}/posta/contexto/${turnoId}/${paciente.cama}`)
@@ -1038,27 +975,21 @@ ${contextoCompleto || ''}`,
               <div style={{ fontSize: 12, color: S.verde }}>{paciente.dx}</div>
             </div>
 
-            {secciones.length === 0 ? (
+            {!evolucionHoy ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 0', textAlign: 'center' }}>
                 <div style={{ width: 48, height: 48, borderRadius: '50%', background: S.verdeCard, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, marginBottom: 12 }}>⚕</div>
                 <div style={{ fontSize: 14, color: S.text, fontWeight: 500, marginBottom: 6 }}>Esperando evolución de hoy</div>
                 <div style={{ fontSize: 12, color: S.muted, lineHeight: 1.6 }}>Grabá el pase para que POSTA organice la evolución de esta guardia.</div>
               </div>
-            ) : secciones.map((sec, i) => (
-              <div key={i} style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 10, fontWeight: 500, color: colores[sec.titulo] || S.verde, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6, paddingLeft: 8, borderLeft: `2px solid ${colores[sec.titulo] || S.verde}` }}>
-                  {sec.titulo}
-                </div>
-                <div style={{ fontSize: 13, color: S.text, lineHeight: 1.6 }}>
-                  {sec.contenido.split('\n').filter(l => l.trim()).map((l, j) => (
-                    <div key={j} style={{ display: 'flex', gap: 6, marginBottom: 3 }}>
-                      <span style={{ color: S.muted, flexShrink: 0 }}>·</span>
-                      <span>{l.replace(/^[-•*]\s*/, '').replace(/\*\*/g, '')}</span>
-                    </div>
-                  ))}
-                </div>
+            ) : (
+              <div style={{ background: S.verdeCard, border: `0.5px solid ${S.border}`, borderRadius: 10, padding: '14px 16px' }}>
+                {evolucionHoy.split('\n').filter(l => l.trim()).map((linea, i) => (
+                  <div key={i} style={{ fontSize: 13, color: S.text, lineHeight: 1.8, marginBottom: 2 }}>
+                    {linea.trim()}
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
 
           <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${S.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
